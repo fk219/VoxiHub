@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Widget Deployment Example</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            background: #f5f7fa;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 40px;
+            text-align: center;
+        }
+        .content {
+            padding: 40px;
+        }
+        .section {
+            margin-bottom: 40px;
+            padding: 30px;
+            border: 1px solid #e1e8ed;
+            border-radius: 8px;
+            background: #fafbfc;
+        }
+        .section h2 {
+            margin-top: 0;
+            color: #333;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+        .demo-controls {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            margin: 20px 0;
+        }
+        button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+        .btn-primary:hover {
+            background: #5a67d8;
+            transform: translateY(-1px);
+        }
+        .btn-secondary {
+            background: #718096;
+            color: white;
+        }
+        .btn-secondary:hover {
+            background: #4a5568;
+        }
+        .code-block {
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 20px;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+        .analytics-display {
+            background: #f7fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+        .event-item {
+            padding: 10px;
+            margin: 5px 0;
+            background: white;
+            border-left: 4px solid #667eea;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        .status-success { background: #48bb78; }
+        .status-warning { background: #ed8936; }
+        .status-error { background: #f56565; }
+        .integration-tabs {
+            display: flex;
+            border-bottom: 1px solid #e2e8f0;
+            margin-bottom: 20px;
+        }
+        .tab {
+            padding: 12px 24px;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+        }
+        .tab.active {
+            border-bottom-color: #667eea;
+            color: #667eea;
+            font-weight: 600;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>AI Widget Deployment System</h1>
+            <p>Complete integration and deployment example with analytics tracking</p>
+        </div>
+
+        <div class="content">
+            <!-- Widget Demo Section -->
+            <div class="section">
+                <h2>🚀 Live Widget Demo</h2>
+                <p>The AI widget is embedded on this page. Try the controls below to interact with it programmatically.</p>
+                
+                <div class="demo-controls">
+                    <button class="btn-primary" onclick="showWidget()">Show Widget</button>
+                    <button class="btn-secondary" onclick="hideWidget()">Hide Widget</button>
+                    <button class="btn-primary" onclick="toggleWidget()">Toggle Widget</button>
+                    <button class="btn-secondary" onclick="sendTestMessage()">Send Test Message</button>
+                    <button class="btn-primary" onclick="clearConversation()">Clear Chat</button>
+                    <button class="btn-secondary" onclick="enableVoice()">Enable Voice</button>
+                </div>
+
+                <div id="widget-status">
+                    <span class="status-indicator status-warning"></span>
+                    Widget loading...
+                </div>
+            </div>
+
+            <!-- Deployment Configuration -->
+            <div class="section">
+                <h2>⚙️ Deployment Configuration</h2>
+                <p>This widget was deployed with the following configuration:</p>
+                
+                <div class="code-block" id="deployment-config">
+                    Loading configuration...
+                </div>
+
+                <button class="btn-primary" onclick="generateNewDeployment()" style="margin-top: 15px;">
+                    Generate New Deployment
+                </button>
+            </div>
+
+            <!-- Integration Examples -->
+            <div class="section">
+                <h2>📋 Integration Examples</h2>
+                <p>Choose your platform to see integration code:</p>
+                
+                <div class="integration-tabs">
+                    <div class="tab active" onclick="showTab('html')">HTML</div>
+                    <div class="tab" onclick="showTab('react')">React</div>
+                    <div class="tab" onclick="showTab('vue')">Vue.js</div>
+                    <div class="tab" onclick="showTab('wordpress')">WordPress</div>
+                </div>
+
+                <div id="html-tab" class="tab-content active">
+                    <div class="code-block" id="html-integration">
+                        Loading HTML integration...
+                    </div>
+                </div>
+
+                <div id="react-tab" class="tab-content">
+                    <div class="code-block" id="react-integration">
+                        Loading React integration...
+                    </div>
+                </div>
+
+                <div id="vue-tab" class="tab-content">
+                    <div class="code-block" id="vue-integration">
+                        Loading Vue.js integration...
+                    </div>
+                </div>
+
+                <div id="wordpress-tab" class="tab-content">
+                    <div class="code-block" id="wordpress-integration">
+                        Loading WordPress integration...
+                    </div>
+                </div>
+            </div>
+
+            <!-- Analytics Dashboard -->
+            <div class="section">
+                <h2>📊 Real-time Analytics</h2>
+                <p>Track widget interactions and performance:</p>
+                
+                <div class="demo-controls">
+                    <button class="btn-primary" onclick="refreshAnalytics()">Refresh Analytics</button>
+                    <button class="btn-secondary" onclick="clearAnalytics()">Clear Data</button>
+                    <button class="btn-primary" onclick="exportAnalytics()">Export Data</button>
+                </div>
+
+                <div class="analytics-display" id="analytics-display">
+                    <p>No analytics data yet. Interact with the widget to see events.</p>
+                </div>
+            </div>
+
+            <!-- SDK Features -->
+            <div class="section">
+                <h2>🛠️ SDK Features</h2>
+                <p>The Widget SDK provides comprehensive deployment and management capabilities:</p>
+                
+                <ul>
+                    <li>✅ Automatic embed code generation</li>
+                    <li>✅ Cross-platform integration guides</li>
+                    <li>✅ Real-time analytics tracking</li>
+                    <li>✅ Cross-origin communication</li>
+                    <li>✅ Deployment validation</li>
+                    <li>✅ Performance monitoring</li>
+                    <li>✅ Error tracking and reporting</li>
+                    <li>✅ A/B testing support</li>
+                </ul>
+
+                <button class="btn-primary" onclick="testSDKFeatures()">Test SDK Features</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- AI Widget Embed Code -->
+    <script src="../dist/widget.js" 
+            data-agent-id="demo-agent-123"
+            data-theme="light"
+            data-position="bottom-right"
+            data-size="medium"
+            data-voice-enabled="true"
+            data-greeting="Hello! I'm a demo AI assistant. Try out the voice and chat features!"
+            data-company-name="Demo Company"
+            data-show-powered-by="true"
+            data-analytics="true">
+    </script>
+
+    <script>
+        let widget = null;
+        let sdk = null;
+        let deploymentHelper = null;
+
+        // Initialize when page loads
+        document.addEventListener('DOMContentLoaded', async function() {
+            // Wait for widget to load
+            setTimeout(async function() {
+                if (window.AIWidget && window.AIWidgetSDK) {
+                    sdk = window.AIWidgetSDK;
+                    
+                    // Import deployment helper
+                    try {
+                        const { DeploymentHelper } = await import('../dist/widget.js');
+                        deploymentHelper = new DeploymentHelper(sdk);
+                        
+                        updateStatus('success', 'Widget and SDK loaded successfully');
+                        await loadDeploymentConfig();
+                        await loadIntegrationExamples();
+                        
+                    } catch (error) {
+                        console.error('Failed to load deployment helper:', error);
+                        updateStatus('error', 'Failed to load deployment helper');
+                    }
+                } else {
+                    updateStatus('error', 'Widget failed to load');
+                }
+            }, 2000);
+        });
+
+        // Widget control functions
+        function showWidget() {
+            if (sdk) {
+                const widgets = sdk.getAllWidgets();
+                const firstWidget = widgets.values().next().value;
+                if (firstWidget) {
+                    firstWidget.show();
+                }
+            }
+        }
+
+        function hideWidget() {
+            if (sdk) {
+                const widgets = sdk.getAllWidgets();
+                const firstWidget = widgets.values().next().value;
+                if (firstWidget) {
+                    firstWidget.hide();
+                }
+            }
+        }
+
+        function toggleWidget() {
+            if (sdk) {
+                const widgets = sdk.getAllWidgets();
+                const firstWidget = widgets.values().next().value;
+                if (firstWidget) {
+                    firstWidget.toggle();
+                }
+            }
+        }
+
+        function sendTestMessage() {
+            if (sdk) {
+                const widgets = sdk.getAllWidgets();
+                const firstWidget = widgets.values().next().value;
+                if (firstWidget) {
+                    firstWidget.sendMessageProgrammatically('This is a test message from the deployment demo!');
+                }
+            }
+        }
+
+        function clearConversation() {
+            if (sdk) {
+                const widgets = sdk.getAllWidgets();
+                const firstWidget = widgets.values().next().value;
+                if (firstWidget) {
+                    firstWidget.clearConversation();
+                }
+            }
+        }
+
+        function enableVoice() {
+            if (sdk) {
+                const widgets = sdk.getAllWidgets();
+                const firstWidget = widgets.values().next().value;
+                if (firstWidget) {
+                    firstWidget.enableVoice();
+                }
+            }
+        }
+
+        // Deployment functions
+        async function loadDeploymentConfig() {
+            if (!deploymentHelper) return;
+
+            const config = {
+                agentId: 'demo-agent-123',
+                theme: 'light',
+                position: 'bottom-right',
+                size: 'medium',
+                voiceEnabled: true,
+                greeting: 'Hello! I\'m a demo AI assistant.',
+                branding: {
+                    companyName: 'Demo Company',
+                    showPoweredBy: true
+                }
+            };
+
+            const deployment = deploymentHelper.generateDeployment(
+                'demo-agent-123',
+                config,
+                { environment: 'development', analyticsEnabled: true }
+            );
+
+            document.getElementById('deployment-config').textContent = 
+                JSON.stringify(deployment, null, 2);
+        }
+
+        async function loadIntegrationExamples() {
+            if (!deploymentHelper) return;
+
+            const config = {
+                agentId: 'demo-agent-123',
+                theme: 'light',
+                position: 'bottom-right',
+                voiceEnabled: true
+            };
+
+            const deployment = deploymentHelper.generateDeployment(
+                'demo-agent-123',
+                config
+            );
+
+            document.getElementById('html-integration').textContent = 
+                deployment.integrationGuide.html;
+            document.getElementById('react-integration').textContent = 
+                deployment.integrationGuide.react;
+            document.getElementById('vue-integration').textContent = 
+                deployment.integrationGuide.vue;
+            document.getElementById('wordpress-integration').textContent = 
+                deployment.integrationGuide.wordpress;
+        }
+
+        function generateNewDeployment() {
+            alert('New deployment generation would open a configuration dialog in a real implementation.');
+        }
+
+        // Analytics functions
+        function refreshAnalytics() {
+            if (!sdk) return;
+
+            const analytics = sdk.getAnalytics();
+            const display = document.getElementById('analytics-display');
+            
+            if (analytics.length === 0) {
+                display.innerHTML = '<p>No analytics data yet. Interact with the widget to see events.</p>';
+                return;
+            }
+
+            let html = '<h3>Recent Events:</h3>';
+            analytics.slice(-10).reverse().forEach(event => {
+                html += `
+                    <div class="event-item">
+                        <strong>${event.type}</strong> - ${event.timestamp.toLocaleTimeString()}
+                        ${event.data ? `<br><small>${JSON.stringify(event.data)}</small>` : ''}
+                    </div>
+                `;
+            });
+
+            display.innerHTML = html;
+        }
+
+        function clearAnalytics() {
+            if (sdk) {
+                sdk.clearAnalytics();
+                refreshAnalytics();
+            }
+        }
+
+        function exportAnalytics() {
+            if (!sdk) return;
+
+            const analytics = sdk.getAnalytics();
+            const dataStr = JSON.stringify(analytics, null, 2);
+            const dataBlob = new Blob([dataStr], {type: 'application/json'});
+            
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(dataBlob);
+            link.download = 'widget-analytics.json';
+            link.click();
+        }
+
+        // Tab functions
+        function showTab(tabName) {
+            // Hide all tabs
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+
+            // Show selected tab
+            document.getElementById(tabName + '-tab').classList.add('active');
+            event.target.classList.add('active');
+        }
+
+        // Utility functions
+        function updateStatus(type, message) {
+            const statusEl = document.getElementById('widget-status');
+            const indicator = statusEl.querySelector('.status-indicator');
+            
+            indicator.className = `status-indicator status-${type}`;
+            statusEl.innerHTML = `<span class="status-indicator status-${type}"></span>${message}`;
+        }
+
+        function testSDKFeatures() {
+            alert('SDK feature testing would demonstrate validation, cross-origin messaging, and other advanced features.');
+        }
+
+        // Auto-refresh analytics every 5 seconds
+        setInterval(refreshAnalytics, 5000);
+    </script>
+</body>
+</html>

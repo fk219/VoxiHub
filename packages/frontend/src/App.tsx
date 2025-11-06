@@ -1,0 +1,33 @@
+import { Routes, Route } from 'react-router-dom'
+import { Toaster } from 'react-hot-toast'
+import Layout from '@/components/Layout'
+import Dashboard from '@/pages/Dashboard'
+import AgentList from '@/pages/AgentList'
+import AgentBuilder from '@/pages/AgentBuilder'
+import AgentDeployment from '@/pages/AgentDeployment'
+import AdminDashboard from '@/pages/AdminDashboard'
+import ConversationMonitoring from '@/pages/ConversationMonitoring'
+import PerformanceAnalytics from '@/pages/PerformanceAnalytics'
+import './App.css'
+
+function App() {
+  return (
+    <div className="App">
+      <Layout>
+        <Routes>
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/agents" element={<AgentList />} />
+          <Route path="/agents/new" element={<AgentBuilder />} />
+          <Route path="/agents/:id" element={<AgentBuilder />} />
+          <Route path="/agents/:id/deploy" element={<AgentDeployment />} />
+          <Route path="/admin" element={<AdminDashboard />} />
+          <Route path="/conversations" element={<ConversationMonitoring />} />
+          <Route path="/analytics" element={<PerformanceAnalytics />} />
+        </Routes>
+      </Layout>
+      <Toaster position="top-right" />
+    </div>
+  )
+}
+
+export default App

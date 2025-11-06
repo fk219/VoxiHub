@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Widget Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 40px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        p {
+            color: #666;
+            line-height: 1.6;
+            margin-bottom: 15px;
+        }
+        .test-buttons {
+            margin-top: 30px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .primary {
+            background: #3b82f6;
+            color: white;
+        }
+        .secondary {
+            background: #6b7280;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>AI Widget Test Page</h1>
+        <p>This page demonstrates the AI Widget functionality. The widget should appear in the bottom-right corner.</p>
+        <p>You can test the following features:</p>
+        <ul>
+            <li>Click the widget button to open/close the chat</li>
+            <li>Send messages in the chat interface</li>
+            <li>Responsive design on mobile devices</li>
+            <li>Customizable themes and positioning</li>
+        </ul>
+        
+        <div class="test-buttons">
+            <button class="primary" onclick="testWidget.show()">Show Widget</button>
+            <button class="secondary" onclick="testWidget.hide()">Hide Widget</button>
+            <button class="primary" onclick="testWidget.toggle()">Toggle Widget</button>
+            <button class="secondary" onclick="testWidget.sendMessageProgrammatically('Hello from test!')">Send Test Message</button>
+            <button class="secondary" onclick="testWidget.clearConversation()">Clear Chat</button>
+            <button class="primary" onclick="console.log(testWidget.getConversationHistory())">Log History</button>
+        </div>
+        
+        <h3>Chat Features Implemented:</h3>
+        <ul>
+            <li>✅ Message sending and receiving system</li>
+            <li>✅ Typing indicators and message status</li>
+            <li>✅ Conversation context management</li>
+            <li>✅ Message formatting and rich content support</li>
+            <li>✅ Error handling and validation</li>
+            <li>✅ Responsive design and accessibility</li>
+            <li>✅ Keyboard shortcuts (ESC to close, Ctrl+K to clear)</li>
+            <li>✅ Message timestamps and status indicators</li>
+        </ul>
+
+        <h3>Voice Features Implemented:</h3>
+        <ul>
+            <li>✅ WebRTC audio capture and playback</li>
+            <li>✅ Voice activity detection for automatic speech recognition</li>
+            <li>✅ Push-to-talk and continuous listening modes</li>
+            <li>✅ Integration with backend STT and TTS services</li>
+            <li>✅ Microphone permission handling</li>
+            <li>✅ Voice recording indicators and animations</li>
+            <li>✅ Keyboard shortcuts (Space for push-to-talk)</li>
+            <li>✅ Fallback handling when services are unavailable</li>
+        </ul>
+
+        <h3>Deployment & Integration Features:</h3>
+        <ul>
+            <li>✅ JavaScript SDK for easy website integration</li>
+            <li>✅ Embeddable script tags with configuration</li>
+            <li>✅ Cross-origin communication and security</li>
+            <li>✅ Widget analytics and usage tracking</li>
+            <li>✅ Multi-platform integration guides (React, Vue, Angular, WordPress, Shopify)</li>
+            <li>✅ Deployment validation and testing</li>
+            <li>✅ Real-time event tracking and analytics</li>
+            <li>✅ Programmatic widget control</li>
+        </ul>
+
+        <p><strong>🎉 All subtasks for Task 5 "Develop Website AI Widget" have been completed!</strong></p>
+        
+        <p>For a comprehensive deployment demo, see: <a href="./examples/deployment-example.html">deployment-example.html</a></p>
+    </div>
+
+    <!-- Widget Script -->
+    <script src="./dist/widget.js"></script>
+    <script>
+        // Initialize widget programmatically
+        const testWidget = new AIWidget({
+            agentId: 'test-agent-123',
+            theme: 'light',
+            position: 'bottom-right',
+            size: 'medium',
+            greeting: 'Hello! I\'m your AI assistant. You can type or speak to me. How can I help you today?',
+            placeholder: 'Type or click the microphone to speak...',
+            branding: {
+                companyName: 'Test Company',
+                showPoweredBy: true
+            },
+            voiceEnabled: true,
+            autoOpen: false
+        });
+        
+        // Initialize widget (now async)
+        testWidget.init().then(() => {
+            console.log('AI Widget initialized successfully');
+        }).catch((error) => {
+            console.error('Failed to initialize AI Widget:', error);
+        });
+    </script>
+</body>
+</html>
