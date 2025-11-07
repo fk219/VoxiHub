@@ -12,12 +12,6 @@ COPY . .
 # Create logs directory
 RUN mkdir -p logs
 
-# Build the application
-RUN npm run build
-
-# Remove dev dependencies after build
-RUN npm prune --production
-
 # Expose port
 EXPOSE 3001
 
@@ -25,5 +19,5 @@ EXPOSE 3001
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD curl -f http://localhost:3001/health || exit 1
 
-# Start the application
-CMD ["npm", "start"]
+# Start the application with tsx (runs TypeScript directly)
+CMD ["npm", "run", "dev:tsx"]
