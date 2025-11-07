@@ -11,7 +11,8 @@ import {
   MdClose,
   MdChevronLeft,
   MdChevronRight,
-  MdFunctions
+  MdFunctions,
+  MdLibraryBooks
 } from 'react-icons/md'
 import { HiSparkles } from 'react-icons/hi2'
 
@@ -27,6 +28,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const navigation = [
     { name: 'Dashboard', href: '/', icon: MdDashboard },
     { name: 'Agents', href: '/agents', icon: MdSmartToy },
+    { name: 'Knowledge Base', href: '/knowledge-base', icon: MdLibraryBooks },
     { name: 'Conversations', href: '/conversations', icon: MdChat },
     { name: 'Analytics', href: '/analytics', icon: MdAnalytics },
     { name: 'Functions', href: '/functions', icon: MdFunctions },

@@ -28,6 +28,7 @@ interface AgentConfig {
   llm_temperature: number;
   llm_max_tokens: number;
   functions_enabled: boolean;
+  knowledge_base_ids: string[];
   stt_provider: string;
   tts_provider: string;
   interruption_sensitivity: number;
@@ -63,6 +64,7 @@ const AgentBuilder: React.FC = () => {
     llm_temperature: 0.7,
     llm_max_tokens: 1000,
     functions_enabled: true,
+    knowledge_base_ids: [],
     stt_provider: 'openai',
     tts_provider: 'elevenlabs',
     interruption_sensitivity: 0.5,
@@ -72,11 +74,23 @@ const AgentBuilder: React.FC = () => {
     webhook_url: ''
   });
 
+  const [knowledgeBases, setKnowledgeBases] = useState<any[]>([]);
+
   useEffect(() => {
+    loadKnowledgeBases();
     if (isEditing) {
       loadAgent();
     }
   }, [id]);
+
+  const loadKnowledgeBases = async () => {
+    try {
+      const response = await apiClient.get('/api/knowledge-bases');
+      setKnowledgeBases(response.data);
+    } catch (error) {
+      console.error('Failed to load knowledge bases:', error);
+    }
+  };
 
   const loadAgent = async () => {
     try {
@@ -588,6 +602,86 @@ const AgentBuilder: React.FC = () => {
                   </div>
                 </div>
               </label>
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: 400, color: '#0f172a', marginBottom: '8px' }}>
+                Knowledge Bases
+              </label>
+              <div style={{ fontSize: '12px', fontWeight: 300, color: '#64748b', marginBottom: '12px' }}>
+                Select knowledge bases to provide context to your agent
+              </div>
+              {knowledgeBases.length === 0 ? (
+                <div style={{
+                  padding: '16px',
+                  border: '1px dashed #e2e8f0',
+                  borderRadius: '8px',
+                  textAlign: 'center',
+                  fontSize: '13px',
+                  fontWeight: 300,
+                  color: '#64748b'
+                }}>
+                  No knowledge bases available.{' '}
+                  <button
+                    onClick={() => navigate('/knowledge-base')}
+                    style={{
+                      color: '#84cc16',
+                      textDecoration: 'underline',
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      fontSize: '13px',
+                      fontWeight: 300
+                    }}
+                  >
+                    Create one
+                  </button>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {knowledgeBases.map(kb => (
+                    <label
+                      key={kb.id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '12px',
+                        padding: '12px',
+                        border: '1px solid #e2e8f0',
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        background: config.knowledge_base_ids.includes(kb.id) ? '#f0fdf4' : 'white'
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={config.knowledge_base_ids.includes(kb.id)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            updateConfig({ knowledge_base_ids: [...config.knowledge_base_ids, kb.id] });
+                          } else {
+                            updateConfig({ knowledge_base_ids: config.knowledge_base_ids.filter(id => id !== kb.id) });
+                          }
+                        }}
+                        style={{ width: '18px', height: '18px' }}
+                      />
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: '13px', fontWeight: 400, color: '#0f172a' }}>
+                          {kb.name}
+                        </div>
+                        {kb.description && (
+                          <div style={{ fontSize: '12px', fontWeight: 300, color: '#64748b' }}>
+                            {kb.description}
+                          </div>
+                        )}
+                      </div>
+                      <div style={{ fontSize: '11px', fontWeight: 300, color: '#64748b' }}>
+                        {kb.document_count || 0} docs
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}

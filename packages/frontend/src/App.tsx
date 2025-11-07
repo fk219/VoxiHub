@@ -10,6 +10,7 @@ import ConversationMonitoring from '@/pages/ConversationMonitoring'
 import PerformanceAnalytics from '@/pages/PerformanceAnalytics'
 import PrivacyDashboard from '@/pages/PrivacyDashboard'
 import FunctionManagement from '@/pages/FunctionManagement'
+import KnowledgeBase from '@/pages/KnowledgeBase'
 import './App.css'
 
 function App() {
@@ -28,6 +29,7 @@ function App() {
           <Route path="/analytics" element={<PerformanceAnalytics />} />
           <Route path="/privacy" element={<PrivacyDashboard />} />
           <Route path="/functions" element={<FunctionManagement />} />
+          <Route path="/knowledge-base" element={<KnowledgeBase />} />
         </Routes>
       </Layout>
       <Toaster position="top-right" />
