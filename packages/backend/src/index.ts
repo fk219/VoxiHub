@@ -1,6 +1,8 @@
+// IMPORTANT: Load environment variables FIRST before any other imports
+import './config/env';
+
 import express from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
 import { createClient } from '@supabase/supabase-js';
 import { createClient as createRedisClient } from 'redis';
 import { DatabaseService } from './services/database';
@@ -17,9 +19,7 @@ import { authenticateToken, optionalAuth } from './middleware/auth';
 import { securityHeaders, sanitizeInput, securityLogger, corsOptions } from './middleware/security';
 import { createAPIRateLimit, createAuthRateLimit } from './middleware/rateLimiting';
 import { logger } from './utils/logger';
-
-// Load environment variables
-dotenv.config();
+import { config } from './config/env';
 
 // Initialize Express app
 const app = express();
