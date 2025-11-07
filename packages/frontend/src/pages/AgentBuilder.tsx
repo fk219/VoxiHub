@@ -1,575 +1,776 @@
-import React, { useState, useEffect } from 'react'
-import { useParams, Link, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Save, Eye, Plus, Upload, X, FileText, Link as LinkIcon } from 'lucide-react'
-import { Agent, FAQ, Document } from '@/types'
-import { apiClient } from '@/lib/api'
-import { useApp } from '@/contexts/AppContext'
-import AgentTester from '@/components/AgentTester'
-import DocumentUploader from '@/components/DocumentUploader'
-import { validateAgent, validateUrl } from '@/utils/validation'
-import toast from 'react-hot-toast'
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import {
+  MdSave,
+  MdArrowBack,
+  MdRocketLaunch,
+  MdPlayArrow,
+  MdMic,
+  MdBrain,
+  MdSettings,
+  MdCode,
+  MdPhone
+} from 'react-icons/md';
+import { apiClient } from '@/lib/api';
+import toast from 'react-hot-toast';
+
+interface AgentConfig {
+  name: string;
+  description: string;
+  personality_tone: string;
+  personality_instructions: string;
+  language: string;
+  voice_id: string;
+  voice_model: string;
+  voice_speed: number;
+  voice_temperature: number;
+  llm_model: string;
+  llm_temperature: number;
+  llm_max_tokens: number;
+  functions_enabled: boolean;
+  stt_provider: string;
+  tts_provider: string;
+  interruption_sensitivity: number;
+  response_delay: number;
+  end_call_phrases: string[];
+  max_call_duration: number;
+  webhook_url: string;
+}
 
 const AgentBuilder: React.FC = () => {
-  const { id } = useParams<{ id: string }>()
-  const navigate = useNavigate()
-  const { dispatch } = useApp()
-  const isEditing = Boolean(id)
+  const navigate = useNavigate();
+  const { id } = useParams();
+  const isEditing = !!id;
 
-  const [agent, setAgent] = useState<Partial<Agent>>({
+  const [activeTab, setActiveTab] = useState<'basic' | 'voice' | 'llm' | 'advanced' | 'test'>('basic');
+  const [saving, setSaving] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [testMessage, setTestMessage] = useState('');
+  const [testResponse, setTestResponse] = useState<string | null>(null);
+
+  const [config, setConfig] = useState<AgentConfig>({
     name: '',
     description: '',
-    personality: {
-      tone: 'professional',
-      style: '',
-      instructions: ''
-    },
-    knowledgeBase: {
-      documents: [],
-      urls: [],
-      faqs: []
-    },
-    settings: {
-      responseTime: 2000,
-      maxConversationLength: 50,
-      escalationTriggers: []
-    }
-  })
-
-  const [loading, setLoading] = useState(false)
-  const [showPreview, setShowPreview] = useState(false)
-  const [showTester, setShowTester] = useState(false)
-  const [newUrl, setNewUrl] = useState('')
-  const [newFaq, setNewFaq] = useState({ question: '', answer: '' })
-  const [newTrigger, setNewTrigger] = useState('')
+    personality_tone: 'professional',
+    personality_instructions: '',
+    language: 'en-US',
+    voice_id: '',
+    voice_model: 'eleven_turbo_v2',
+    voice_speed: 1.0,
+    voice_temperature: 0.7,
+    llm_model: 'gpt-4',
+    llm_temperature: 0.7,
+    llm_max_tokens: 1000,
+    functions_enabled: true,
+    stt_provider: 'openai',
+    tts_provider: 'elevenlabs',
+    interruption_sensitivity: 0.5,
+    response_delay: 0,
+    end_call_phrases: ['goodbye', 'bye', 'thank you'],
+    max_call_duration: 3600000,
+    webhook_url: ''
+  });
 
   useEffect(() => {
-    if (isEditing && id) {
-      loadAgent(id)
+    if (isEditing) {
+      loadAgent();
     }
-  }, [id, isEditing])
+  }, [id]);
 
-  const loadAgent = async (agentId: string) => {
+  const loadAgent = async () => {
     try {
-      setLoading(true)
-      const loadedAgent = await apiClient.getAgent(agentId)
-      setAgent(loadedAgent)
+      const response = await apiClient.get(`/api/agents/${id}`);
+      setConfig(response.data);
     } catch (error) {
-      toast.error('Failed to load agent')
-      console.error('Error loading agent:', error)
-    } finally {
-      setLoading(false)
+      console.error('Failed to load agent:', error);
+      toast.error('Failed to load agent');
+      navigate('/agents');
     }
-  }
+  };
 
   const handleSave = async () => {
-    // Validate agent configuration
-    const validationErrors = validateAgent(agent)
-    if (validationErrors.length > 0) {
-      toast.error(validationErrors[0].message)
-      return
+    if (!config.name.trim()) {
+      toast.error('Agent name is required');
+      return;
     }
+
+    setSaving(true);
+    try {
+      if (isEditing) {
+        await apiClient.put(`/api/agents/${id}`, config);
+        toast.success('Agent updated successfully');
+      } else {
+        const response = await apiClient.post('/api/agents', config);
+        toast.success('Agent created successfully');
+        navigate(`/agents/${response.data.id}`);
+      }
+    } catch (error: any) {
+      console.error('Failed to save agent:', error);
+      toast.error(error.response?.data?.error || 'Failed to save agent');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handlePublish = async () => {
+    if (!isEditing) {
+      toast.error('Please save the agent first');
+      return;
+    }
+
+    setPublishing(true);
+    try {
+      await apiClient.post(`/api/agents/${id}/publish`);
+      toast.success('Agent published successfully');
+      navigate('/agents');
+    } catch (error: any) {
+      console.error('Failed to publish agent:', error);
+      toast.error(error.response?.data?.error || 'Failed to publish agent');
+    } finally {
+      setPublishing(false);
+    }
+  };
+
+  const handleTest = async () => {
+    if (!testMessage.trim()) {
+      toast.error('Please enter a test message');
+      return;
+    }
+
+    if (!isEditing) {
+      toast.error('Please save the agent first');
+      return;
+    }
+
+    setTesting(true);
+    setTestResponse(null);
 
     try {
-      setLoading(true)
-      let savedAgent: Agent
+      const response = await apiClient.post(`/api/agents/${id}/test`, {
+        message: testMessage
+      });
 
-      if (isEditing && id) {
-        savedAgent = await apiClient.updateAgent(id, agent)
-        dispatch({ type: 'UPDATE_AGENT', payload: savedAgent })
-        toast.success('Agent updated successfully')
-      } else {
-        savedAgent = await apiClient.createAgent(agent as Omit<Agent, 'id' | 'createdAt' | 'updatedAt'>)
-        dispatch({ type: 'ADD_AGENT', payload: savedAgent })
-        toast.success('Agent created successfully')
-        navigate(`/agents/${savedAgent.id}`)
-      }
-    } catch (error) {
-      toast.error(isEditing ? 'Failed to update agent' : 'Failed to create agent')
-      console.error('Error saving agent:', error)
+      setTestResponse(response.data.response);
+      toast.success('Test completed');
+    } catch (error: any) {
+      console.error('Failed to test agent:', error);
+      toast.error(error.response?.data?.error || 'Failed to test agent');
     } finally {
-      setLoading(false)
+      setTesting(false);
     }
-  }
+  };
 
-  const handleInputChange = (field: string, value: any) => {
-    setAgent(prev => ({
-      ...prev,
-      [field]: value
-    }))
-  }
+  const updateConfig = (updates: Partial<AgentConfig>) => {
+    setConfig({ ...config, ...updates });
+  };
 
-  const handlePersonalityChange = (field: string, value: any) => {
-    setAgent(prev => ({
-      ...prev,
-      personality: {
-        ...prev.personality!,
-        [field]: value
-      }
-    }))
-  }
-
-  const handleSettingsChange = (field: string, value: any) => {
-    setAgent(prev => ({
-      ...prev,
-      settings: {
-        ...prev.settings!,
-        [field]: value
-      }
-    }))
-  }
-
-  const handleDocumentsChange = (documents: Document[]) => {
-    setAgent(prev => ({
-      ...prev,
-      knowledgeBase: {
-        ...prev.knowledgeBase!,
-        documents
-      }
-    }))
-  }
-
-  const addUrl = () => {
-    if (newUrl.trim()) {
-      if (!validateUrl(newUrl.trim())) {
-        toast.error('Please enter a valid URL')
-        return
-      }
-      
-      setAgent(prev => ({
-        ...prev,
-        knowledgeBase: {
-          ...prev.knowledgeBase!,
-          urls: [...prev.knowledgeBase!.urls, newUrl.trim()]
-        }
-      }))
-      setNewUrl('')
-    }
-  }
-
-  const removeUrl = (index: number) => {
-    setAgent(prev => ({
-      ...prev,
-      knowledgeBase: {
-        ...prev.knowledgeBase!,
-        urls: prev.knowledgeBase!.urls.filter((_, i) => i !== index)
-      }
-    }))
-  }
-
-  const addFaq = () => {
-    if (newFaq.question.trim() && newFaq.answer.trim()) {
-      const faq: FAQ = {
-        id: Date.now().toString(),
-        question: newFaq.question.trim(),
-        answer: newFaq.answer.trim()
-      }
-      setAgent(prev => ({
-        ...prev,
-        knowledgeBase: {
-          ...prev.knowledgeBase!,
-          faqs: [...prev.knowledgeBase!.faqs, faq]
-        }
-      }))
-      setNewFaq({ question: '', answer: '' })
-    }
-  }
-
-  const removeFaq = (id: string) => {
-    setAgent(prev => ({
-      ...prev,
-      knowledgeBase: {
-        ...prev.knowledgeBase!,
-        faqs: prev.knowledgeBase!.faqs.filter(faq => faq.id !== id)
-      }
-    }))
-  }
-
-  const addTrigger = () => {
-    if (newTrigger.trim()) {
-      setAgent(prev => ({
-        ...prev,
-        settings: {
-          ...prev.settings!,
-          escalationTriggers: [...prev.settings!.escalationTriggers, newTrigger.trim()]
-        }
-      }))
-      setNewTrigger('')
-    }
-  }
-
-  const removeTrigger = (index: number) => {
-    setAgent(prev => ({
-      ...prev,
-      settings: {
-        ...prev.settings!,
-        escalationTriggers: prev.settings!.escalationTriggers.filter((_, i) => i !== index)
-      }
-    }))
-  }
-
-  if (loading && isEditing) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-gray-600">Loading agent...</div>
-      </div>
-    )
-  }
+  const tabs = [
+    { id: 'basic', label: 'Basic Info', icon: MdSettings },
+    { id: 'voice', label: 'Voice', icon: MdMic },
+    { id: 'llm', label: 'AI Model', icon: MdBrain },
+    { id: 'advanced', label: 'Advanced', icon: MdCode },
+    { id: 'test', label: 'Test', icon: MdPlayArrow }
+  ];
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center">
-          <Link
-            to="/agents"
-            className="inline-flex items-center text-gray-600 hover:text-gray-900 mr-4"
-          >
-            <ArrowLeft className="w-4 h-4 mr-1" />
-            Back to Agents
-          </Link>
-          <h2 className="text-3xl font-bold text-gray-900">
-            {isEditing ? 'Edit Agent' : 'Create New Agent'}
-          </h2>
+      {/* Header */}
+      <div className="card" style={{ marginBottom: '24px' }}>
+        <div className="card-header">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <button
+              onClick={() => navigate('/agents')}
+              style={{
+                padding: '8px',
+                border: '1px solid #e2e8f0',
+                borderRadius: '8px',
+                background: 'white',
+                cursor: 'pointer',
+                color: '#64748b'
+              }}
+            >
+              <MdArrowBack size={20} />
+            </button>
+            <div>
+              <h2 className="card-title">{isEditing ? 'Edit Agent' : 'Create Agent'}</h2>
+              <p className="card-subtitle">Configure your AI voice agent</p>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: '12px' }}>
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="btn btn-secondary"
+            >
+              <MdSave size={20} />
+              <span>{saving ? 'Saving...' : 'Save'}</span>
+            </button>
+            {isEditing && (
+              <button
+                onClick={handlePublish}
+                disabled={publishing}
+                className="btn btn-primary"
+              >
+                <MdRocketLaunch size={20} />
+                <span>{publishing ? 'Publishing...' : 'Publish'}</span>
+              </button>
+            )}
+          </div>
         </div>
-        
-        <div className="flex space-x-3">
-          <button 
-            onClick={() => setShowPreview(!showPreview)}
-            className="inline-flex items-center px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
-          >
-            <Eye className="w-4 h-4 mr-2" />
-            {showPreview ? 'Hide Preview' : 'Preview'}
-          </button>
-          <button 
-            onClick={handleSave}
-            disabled={loading}
-            className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
-          >
-            <Save className="w-4 h-4 mr-2" />
-            {loading ? 'Saving...' : 'Save Agent'}
-          </button>
+
+        {/* Tabs */}
+        <div style={{ display: 'flex', gap: '8px', marginTop: '16px', borderBottom: '1px solid #f1f5f9' }}>
+          {tabs.map(tab => {
+            const Icon = tab.icon;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as any)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '12px 16px',
+                  border: 'none',
+                  borderBottom: activeTab === tab.id ? '2px solid #84cc16' : '2px solid transparent',
+                  background: 'none',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: 300,
+                  color: activeTab === tab.id ? '#84cc16' : '#64748b',
+                  transition: 'all 0.2s'
+                }}
+              >
+                <Icon size={16} />
+                <span>{tab.label}</span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
-          {/* Basic Information */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Basic Information</h3>
-            
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Agent Name *
-                </label>
-                <input
-                  type="text"
-                  value={agent.name || ''}
-                  onChange={(e) => handleInputChange('name', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Enter agent name"
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Description
-                </label>
-                <textarea
-                  value={agent.description || ''}
-                  onChange={(e) => handleInputChange('description', e.target.value)}
-                  rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Describe what this agent does"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Personality Configuration */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Personality & Tone</h3>
-            
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Tone
-                </label>
-                <select
-                  value={agent.personality?.tone || 'professional'}
-                  onChange={(e) => handlePersonalityChange('tone', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                >
-                  <option value="professional">Professional</option>
-                  <option value="friendly">Friendly</option>
-                  <option value="casual">Casual</option>
-                  <option value="formal">Formal</option>
-                </select>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Communication Style
-                </label>
-                <input
-                  type="text"
-                  value={agent.personality?.style || ''}
-                  onChange={(e) => handlePersonalityChange('style', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="e.g., Helpful and concise, Warm and empathetic"
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Special Instructions
-                </label>
-                <textarea
-                  value={agent.personality?.instructions || ''}
-                  onChange={(e) => handlePersonalityChange('instructions', e.target.value)}
-                  rows={4}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Specific instructions for how the agent should behave and respond"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Knowledge Base */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Knowledge Base</h3>
-            
-            {/* Document Upload */}
-            <div className="mb-6">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Documents
+      {/* Content */}
+      <div className="card">
+        {/* Basic Info Tab */}
+        {activeTab === 'basic' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+            <div>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: 400, color: '#0f172a', marginBottom: '8px' }}>
+                Agent Name *
               </label>
-              <DocumentUploader
-                documents={agent.knowledgeBase?.documents || []}
-                onDocumentsChange={handleDocumentsChange}
-                maxFiles={20}
-                maxFileSize={10}
-                acceptedTypes={['.pdf', '.txt', '.doc', '.docx', '.md', '.csv']}
+              <input
+                type="text"
+                value={config.name}
+                onChange={(e) => updateConfig({ name: e.target.value })}
+                placeholder="e.g., Customer Support Agent"
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '8px',
+                  fontSize: '14px',
+                  fontWeight: 300
+                }}
               />
             </div>
 
-            {/* URLs */}
-            <div className="mb-6">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Website URLs
-              </label>
-              <div className="flex space-x-2">
-                <input
-                  type="url"
-                  value={newUrl}
-                  onChange={(e) => setNewUrl(e.target.value)}
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="https://example.com/help"
-                />
-                <button
-                  onClick={addUrl}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                >
-                  <Plus className="w-4 h-4" />
-                </button>
-              </div>
-              
-              {agent.knowledgeBase?.urls && agent.knowledgeBase.urls.length > 0 && (
-                <div className="mt-4 space-y-2">
-                  {agent.knowledgeBase.urls.map((url, index) => (
-                    <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                      <div className="flex items-center">
-                        <LinkIcon className="w-4 h-4 text-gray-500 mr-2" />
-                        <span className="text-sm text-gray-700">{url}</span>
-                      </div>
-                      <button 
-                        onClick={() => removeUrl(index)}
-                        className="text-red-500 hover:text-red-700"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* FAQs */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Frequently Asked Questions
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: 400, color: '#0f172a', marginBottom: '8px' }}>
+                Description
               </label>
-              <div className="space-y-3">
-                <input
-                  type="text"
-                  value={newFaq.question}
-                  onChange={(e) => setNewFaq(prev => ({ ...prev, question: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Question"
-                />
-                <textarea
-                  value={newFaq.answer}
-                  onChange={(e) => setNewFaq(prev => ({ ...prev, answer: e.target.value }))}
-                  rows={2}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Answer"
-                />
-                <button
-                  onClick={addFaq}
-                  className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add FAQ
-                </button>
-              </div>
-              
-              {agent.knowledgeBase?.faqs && agent.knowledgeBase.faqs.length > 0 && (
-                <div className="mt-4 space-y-3">
-                  {agent.knowledgeBase.faqs.map((faq) => (
-                    <div key={faq.id} className="p-4 bg-gray-50 rounded-lg">
-                      <div className="flex justify-between items-start mb-2">
-                        <h4 className="font-medium text-gray-900">{faq.question}</h4>
-                        <button 
-                          onClick={() => removeFaq(faq.id)}
-                          className="text-red-500 hover:text-red-700"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
-                      <p className="text-sm text-gray-600">{faq.answer}</p>
-                    </div>
-                  ))}
-                </div>
-              )}
+              <textarea
+                value={config.description}
+                onChange={(e) => updateConfig({ description: e.target.value })}
+                placeholder="Describe what this agent does..."
+                rows={3}
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '8px',
+                  fontSize: '14px',
+                  fontWeight: 300,
+                  resize: 'vertical'
+                }}
+              />
             </div>
-          </div>
 
-          {/* Settings */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Settings</h3>
-            
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Response Time (ms)
-                </label>
-                <input
-                  type="number"
-                  value={agent.settings?.responseTime || 2000}
-                  onChange={(e) => handleSettingsChange('responseTime', parseInt(e.target.value))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  min="500"
-                  max="10000"
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Max Conversation Length
-                </label>
-                <input
-                  type="number"
-                  value={agent.settings?.maxConversationLength || 50}
-                  onChange={(e) => handleSettingsChange('maxConversationLength', parseInt(e.target.value))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  min="10"
-                  max="200"
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Escalation Triggers
-                </label>
-                <div className="flex space-x-2">
-                  <input
-                    type="text"
-                    value={newTrigger}
-                    onChange={(e) => setNewTrigger(e.target.value)}
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="e.g., I want to speak to a human"
-                  />
-                  <button
-                    onClick={addTrigger}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                  >
-                    <Plus className="w-4 h-4" />
-                  </button>
-                </div>
-                
-                {agent.settings?.escalationTriggers && agent.settings.escalationTriggers.length > 0 && (
-                  <div className="mt-3 space-y-2">
-                    {agent.settings.escalationTriggers.map((trigger, index) => (
-                      <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                        <span className="text-sm text-gray-700">{trigger}</span>
-                        <button 
-                          onClick={() => removeTrigger(index)}
-                          className="text-red-500 hover:text-red-700"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+            <div>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: 400, color: '#0f172a', marginBottom: '8px' }}>
+                Personality Tone
+              </label>
+              <select
+                value={config.personality_tone}
+                onChange={(e) => updateConfig({ personality_tone: e.target.value })}
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '8px',
+                  fontSize: '14px',
+                  fontWeight: 300
+                }}
+              >
+                <option value="professional">Professional</option>
+                <option value="friendly">Friendly</option>
+                <option value="casual">Casual</option>
+                <option value="formal">Formal</option>
+                <option value="enthusiastic">Enthusiastic</option>
+              </select>
             </div>
-          </div>
-        </div>
 
-        {/* Preview Panel */}
-        {showPreview && (
-          <div className="lg:col-span-1">
-            <div className="bg-white rounded-lg shadow p-6 sticky top-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Agent Preview</h3>
-              
-              <div className="space-y-4">
-                <div>
-                  <h4 className="font-medium text-gray-700">Name</h4>
-                  <p className="text-sm text-gray-600">{agent.name || 'Untitled Agent'}</p>
-                </div>
-                
-                <div>
-                  <h4 className="font-medium text-gray-700">Description</h4>
-                  <p className="text-sm text-gray-600">{agent.description || 'No description'}</p>
-                </div>
-                
-                <div>
-                  <h4 className="font-medium text-gray-700">Tone</h4>
-                  <p className="text-sm text-gray-600 capitalize">{agent.personality?.tone}</p>
-                </div>
-                
-                <div>
-                  <h4 className="font-medium text-gray-700">Knowledge Base</h4>
-                  <div className="text-sm text-gray-600">
-                    <p>{agent.knowledgeBase?.documents?.length || 0} documents</p>
-                    <p>{agent.knowledgeBase?.urls?.length || 0} URLs</p>
-                    <p>{agent.knowledgeBase?.faqs?.length || 0} FAQs</p>
-                  </div>
-                </div>
-                
-                <div className="pt-4 border-t">
-                  <button 
-                    onClick={() => setShowTester(true)}
-                    className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-                  >
-                    Test Agent
-                  </button>
-                </div>
-              </div>
+            <div>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: 400, color: '#0f172a', marginBottom: '8px' }}>
+                Personality Instructions
+              </label>
+              <textarea
+                value={config.personality_instructions}
+                onChange={(e) => updateConfig({ personality_instructions: e.target.value })}
+                placeholder="Provide specific instructions for how the agent should behave..."
+                rows={5}
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '8px',
+                  fontSize: '14px',
+                  fontWeight: 300,
+                  resize: 'vertical'
+                }}
+              />
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: 400, color: '#0f172a', marginBottom: '8px' }}>
+                Language
+              </label>
+              <select
+                value={config.language}
+                onChange={(e) => updateConfig({ language: e.target.value })}
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '8px',
+                  fontSize: '14px',
+                  fontWeight: 300
+                }}
+              >
+                <option value="en-US">English (US)</option>
+                <option value="en-GB">English (UK)</option>
+                <option value="es-ES">Spanish</option>
+                <option value="fr-FR">French</option>
+                <option value="de-DE">German</option>
+                <option value="it-IT">Italian</option>
+                <option value="pt-BR">Portuguese (Brazil)</option>
+                <option value="ja-JP">Japanese</option>
+                <option value="ko-KR">Korean</option>
+                <option value="zh-CN">Chinese (Simplified)</option>
+              </select>
             </div>
           </div>
         )}
+
+        {/* Voice Tab */}
+        {activeTab === 'voice' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+            <div>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: 400, color: '#0f172a', marginBottom: '8px' }}>
+                Voice Provider
+              </label>
+              <select
+                value={config.tts_provider}
+                onChange={(e) => updateConfig({ tts_provider: e.target.value })}
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '8px',
+                  fontSize: '14px',
+                  fontWeight: 300
+                }}
+              >
+                <option value="elevenlabs">ElevenLabs</option>
+                <option value="openai">OpenAI TTS</option>
+                <option value="google">Google Cloud TTS</option>
+                <option value="azure">Azure TTS</option>
+              </select>
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: 400, color: '#0f172a', marginBottom: '8px' }}>
+                Voice Model
+              </label>
+              <select
+                value={config.voice_model}
+                onChange={(e) => updateConfig({ voice_model: e.target.value })}
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '8px',
+                  fontSize: '14px',
+                  fontWeight: 300
+                }}
+              >
+                <option value="eleven_turbo_v2">Eleven Turbo v2 (Fast)</option>
+                <option value="eleven_multilingual_v2">Eleven Multilingual v2</option>
+                <option value="eleven_monolingual_v1">Eleven Monolingual v1</option>
+              </select>
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: 400, color: '#0f172a', marginBottom: '8px' }}>
+                Voice ID
+              </label>
+              <input
+                type="text"
+                value={config.voice_id}
+                onChange={(e) => updateConfig({ voice_id: e.target.value })}
+                placeholder="Enter voice ID from your provider"
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '8px',
+                  fontSize: '14px',
+                  fontWeight: 300
+                }}
+              />
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: 400, color: '#0f172a', marginBottom: '8px' }}>
+                Voice Speed: {config.voice_speed}x
+              </label>
+              <input
+                type="range"
+                min="0.5"
+                max="2"
+                step="0.1"
+                value={config.voice_speed}
+                onChange={(e) => updateConfig({ voice_speed: parseFloat(e.target.value) })}
+                style={{ width: '100%' }}
+              />
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', fontWeight: 300, color: '#64748b', marginTop: '4px' }}>
+                <span>0.5x (Slower)</span>
+                <span>2x (Faster)</span>
+              </div>
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: 400, color: '#0f172a', marginBottom: '8px' }}>
+                Voice Temperature: {config.voice_temperature}
+              </label>
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.1"
+                value={config.voice_temperature}
+                onChange={(e) => updateConfig({ voice_temperature: parseFloat(e.target.value) })}
+                style={{ width: '100%' }}
+              />
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', fontWeight: 300, color: '#64748b', marginTop: '4px' }}>
+                <span>0 (Consistent)</span>
+                <span>1 (Variable)</span>
+              </div>
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: 400, color: '#0f172a', marginBottom: '8px' }}>
+                Speech-to-Text Provider
+              </label>
+              <select
+                value={config.stt_provider}
+                onChange={(e) => updateConfig({ stt_provider: e.target.value })}
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '8px',
+                  fontSize: '14px',
+                  fontWeight: 300
+                }}
+              >
+                <option value="openai">OpenAI Whisper</option>
+                <option value="google">Google Cloud STT</option>
+                <option value="azure">Azure STT</option>
+                <option value="deepgram">Deepgram</option>
+              </select>
+            </div>
+          </div>
+        )}
+
+        {/* LLM Tab */}
+        {activeTab === 'llm' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+            <div>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: 400, color: '#0f172a', marginBottom: '8px' }}>
+                AI Model
+              </label>
+              <select
+                value={config.llm_model}
+                onChange={(e) => updateConfig({ llm_model: e.target.value })}
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '8px',
+                  fontSize: '14px',
+                  fontWeight: 300
+                }}
+              >
+                <option value="gpt-4">GPT-4 (Most Capable)</option>
+                <option value="gpt-4-turbo-preview">GPT-4 Turbo (Fast & Capable)</option>
+                <option value="gpt-3.5-turbo">GPT-3.5 Turbo (Fast & Economical)</option>
+                <option value="claude-3-opus">Claude 3 Opus</option>
+                <option value="claude-3-sonnet">Claude 3 Sonnet</option>
+              </select>
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: 400, color: '#0f172a', marginBottom: '8px' }}>
+                Temperature: {config.llm_temperature}
+              </label>
+              <input
+                type="range"
+                min="0"
+                max="2"
+                step="0.1"
+                value={config.llm_temperature}
+                onChange={(e) => updateConfig({ llm_temperature: parseFloat(e.target.value) })}
+                style={{ width: '100%' }}
+              />
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', fontWeight: 300, color: '#64748b', marginTop: '4px' }}>
+                <span>0 (Focused)</span>
+                <span>2 (Creative)</span>
+              </div>
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: 400, color: '#0f172a', marginBottom: '8px' }}>
+                Max Tokens
+              </label>
+              <input
+                type="number"
+                value={config.llm_max_tokens}
+                onChange={(e) => updateConfig({ llm_max_tokens: parseInt(e.target.value) })}
+                min="100"
+                max="4000"
+                step="100"
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '8px',
+                  fontSize: '14px',
+                  fontWeight: 300
+                }}
+              />
+            </div>
+
+            <div>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={config.functions_enabled}
+                  onChange={(e) => updateConfig({ functions_enabled: e.target.checked })}
+                  style={{ width: '18px', height: '18px' }}
+                />
+                <div>
+                  <div style={{ fontSize: '13px', fontWeight: 400, color: '#0f172a' }}>
+                    Enable Function Calling
+                  </div>
+                  <div style={{ fontSize: '12px', fontWeight: 300, color: '#64748b' }}>
+                    Allow the agent to use functions for real-time data and actions
+                  </div>
+                </div>
+              </label>
+            </div>
+          </div>
+        )}
+
+        {/* Advanced Tab */}
+        {activeTab === 'advanced' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+            <div>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: 400, color: '#0f172a', marginBottom: '8px' }}>
+                Interruption Sensitivity: {config.interruption_sensitivity}
+              </label>
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.1"
+                value={config.interruption_sensitivity}
+                onChange={(e) => updateConfig({ interruption_sensitivity: parseFloat(e.target.value) })}
+                style={{ width: '100%' }}
+              />
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', fontWeight: 300, color: '#64748b', marginTop: '4px' }}>
+                <span>0 (Less Sensitive)</span>
+                <span>1 (More Sensitive)</span>
+              </div>
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: 400, color: '#0f172a', marginBottom: '8px' }}>
+                Response Delay (ms)
+              </label>
+              <input
+                type="number"
+                value={config.response_delay}
+                onChange={(e) => updateConfig({ response_delay: parseInt(e.target.value) })}
+                min="0"
+                max="5000"
+                step="100"
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '8px',
+                  fontSize: '14px',
+                  fontWeight: 300
+                }}
+              />
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: 400, color: '#0f172a', marginBottom: '8px' }}>
+                Max Call Duration (minutes)
+              </label>
+              <input
+                type="number"
+                value={config.max_call_duration / 60000}
+                onChange={(e) => updateConfig({ max_call_duration: parseInt(e.target.value) * 60000 })}
+                min="1"
+                max="120"
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '8px',
+                  fontSize: '14px',
+                  fontWeight: 300
+                }}
+              />
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: 400, color: '#0f172a', marginBottom: '8px' }}>
+                End Call Phrases (comma-separated)
+              </label>
+              <input
+                type="text"
+                value={config.end_call_phrases.join(', ')}
+                onChange={(e) => updateConfig({ end_call_phrases: e.target.value.split(',').map(p => p.trim()) })}
+                placeholder="goodbye, bye, thank you"
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '8px',
+                  fontSize: '14px',
+                  fontWeight: 300
+                }}
+              />
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: 400, color: '#0f172a', marginBottom: '8px' }}>
+                Webhook URL
+              </label>
+              <input
+                type="url"
+                value={config.webhook_url}
+                onChange={(e) => updateConfig({ webhook_url: e.target.value })}
+                placeholder="https://your-server.com/webhook"
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '8px',
+                  fontSize: '14px',
+                  fontWeight: 300
+                }}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Test Tab */}
+        {activeTab === 'test' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+            {!isEditing ? (
+              <div style={{ textAlign: 'center', padding: '48px 24px' }}>
+                <MdPlayArrow size={64} style={{ margin: '0 auto 24px', color: '#cbd5e1' }} />
+                <h3 style={{ fontSize: '18px', fontWeight: 400, color: '#0f172a', marginBottom: '8px' }}>
+                  Save to Test
+                </h3>
+                <p style={{ fontSize: '14px', fontWeight: 300, color: '#64748b', marginBottom: '24px' }}>
+                  Save your agent configuration first to test it
+                </p>
+                <button onClick={handleSave} className="btn btn-primary">
+                  <MdSave size={20} />
+                  <span>Save Agent</span>
+                </button>
+              </div>
+            ) : (
+              <>
+                <div>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 400, color: '#0f172a', marginBottom: '8px' }}>
+                    Test Message
+                  </label>
+                  <textarea
+                    value={testMessage}
+                    onChange={(e) => setTestMessage(e.target.value)}
+                    placeholder="Enter a message to test your agent..."
+                    rows={4}
+                    style={{
+                      width: '100%',
+                      padding: '12px',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '8px',
+                      fontSize: '14px',
+                      fontWeight: 300,
+                      resize: 'vertical'
+                    }}
+                  />
+                </div>
+
+                <button
+                  onClick={handleTest}
+                  disabled={testing || !testMessage.trim()}
+                  className="btn btn-primary"
+                  style={{ alignSelf: 'flex-start' }}
+                >
+                  <MdPlayArrow size={20} />
+                  <span>{testing ? 'Testing...' : 'Test Agent'}</span>
+                </button>
+
+                {testResponse && (
+                  <div style={{
+                    padding: '16px',
+                    background: '#f8fafc',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '8px'
+                  }}>
+                    <div style={{ fontSize: '13px', fontWeight: 400, color: '#0f172a', marginBottom: '12px' }}>
+                      Agent Response:
+                    </div>
+                    <div style={{ fontSize: '14px', fontWeight: 300, color: '#64748b', lineHeight: '1.6' }}>
+                      {testResponse}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
       </div>
-
-      {/* Agent Tester Modal */}
-      {showTester && (
-        <AgentTester 
-          agent={agent} 
-          onClose={() => setShowTester(false)} 
-        />
-      )}
     </div>
-  )
-}
+  );
+};
 
-export default AgentBuilder
+export default AgentBuilder;

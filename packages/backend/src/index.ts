@@ -12,6 +12,7 @@ import { SipManager } from './services/sipManager';
 import { OutboundCallService } from './services/outboundCallService';
 import { AuditService } from './services/auditService';
 import { SessionService } from './services/sessionService';
+import { FunctionRegistry } from './services/functionRegistry';
 import { authenticateToken, optionalAuth } from './middleware/auth';
 import { securityHeaders, sanitizeInput, securityLogger, corsOptions } from './middleware/security';
 import { createAPIRateLimit, createAuthRateLimit } from './middleware/rateLimiting';
@@ -47,6 +48,7 @@ const redis = createRedisClient({
 const dbService = new DatabaseService();
 const auditService = new AuditService(dbService);
 const sessionService = new SessionService(auditService);
+const functionRegistry = new FunctionRegistry(auditService);
 const conversationService = new ConversationService(dbService, redis);
 const sttService = new STTService();
 const ttsService = new TTSService();
@@ -75,6 +77,7 @@ import ttsRoutes from './routes/tts';
 import sipRoutes, { initializeSipRoutes } from './routes/sip';
 import adminRoutes from './routes/admin';
 import privacyRoutes from './routes/privacy';
+import functionRoutes from './routes/api/v1/functions';
 
 // API routes
 app.get('/api', (req, res) => {
@@ -90,6 +93,10 @@ initializeSipRoutes(sipService, outboundCallService, dbService);
 // Apply rate limiting to API routes
 app.use('/api', apiRateLimit.middleware());
 
+// Make services available to routes
+app.set('functionRegistry', functionRegistry);
+app.set('dbService', dbService);
+
 // Mount routes
 app.use('/api/agents', agentRoutes);
 app.use('/api/conversations', conversationRoutes);
@@ -98,6 +105,7 @@ app.use('/api/tts', ttsRoutes);
 app.use('/api/sip', sipRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/privacy', privacyRoutes);
+app.use('/api/v1/functions', functionRoutes);
 
 // Authentication routes with rate limiting
 app.use('/api/auth', authRateLimit.middleware());
