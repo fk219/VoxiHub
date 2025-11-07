@@ -10,7 +10,6 @@ import ConversationMonitoring from '@/pages/ConversationMonitoring'
 import PerformanceAnalytics from '@/pages/PerformanceAnalytics'
 import PrivacyDashboard from '@/pages/PrivacyDashboard'
 import FunctionManagement from '@/pages/FunctionManagement'
-import AgentBuilder from '@/pages/AgentBuilder'
 import './App.css'
 
 function App() {
