@@ -8,6 +8,8 @@ import AgentDeployment from '@/pages/AgentDeployment'
 import AdminDashboard from '@/pages/AdminDashboard'
 import ConversationMonitoring from '@/pages/ConversationMonitoring'
 import PerformanceAnalytics from '@/pages/PerformanceAnalytics'
+import PrivacyDashboard from '@/pages/PrivacyDashboard'
+import './styles/globals.css'
 import './App.css'
 
 function App() {
@@ -23,6 +25,7 @@ function App() {
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/conversations" element={<ConversationMonitoring />} />
           <Route path="/analytics" element={<PerformanceAnalytics />} />
+          <Route path="/privacy" element={<PrivacyDashboard />} />
         </Routes>
       </Layout>
       <Toaster position="top-right" />

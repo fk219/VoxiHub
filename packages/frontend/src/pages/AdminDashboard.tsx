@@ -1,235 +1,224 @@
 import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { BarChart3, MessageSquare, Eye, TrendingUp, Users, Activity } from 'lucide-react'
+import { BarChart3, MessageSquare, Eye, TrendingUp, Users, Activity, ArrowUpRight, Sparkles } from 'lucide-react'
 import { apiClient } from '@/lib/api'
 import { OverviewAnalytics } from '@/types'
-import LiveConversationMonitor from '@/components/LiveConversationMonitor'
-import ConversationAnalytics from '@/components/ConversationAnalytics'
 
 const AdminDashboard: React.FC = () => {
-  const [overviewData, setOverviewData] = useState<OverviewAnalytics | null>(null)
+  const [analytics, setAnalytics] = useState<OverviewAnalytics | null>(null)
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [selectedAgent, setSelectedAgent] = useState<string>('')
-  const [agents, setAgents] = useState<any[]>([])
 
   useEffect(() => {
-    loadData()
+    loadAnalytics()
   }, [])
 
-  const loadData = async () => {
+  const loadAnalytics = async () => {
     try {
-      setLoading(true)
-      const [overview, agentList] = await Promise.all([
-        apiClient.getOverviewAnalytics(),
-        apiClient.getAgents()
-      ])
-      
-      setOverviewData(overview)
-      setAgents(agentList)
-      setError(null)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load dashboard data')
+      const response = await apiClient.get('/admin/analytics/overview')
+      setAnalytics(response.data)
+    } catch (error) {
+      console.error('Failed to load analytics:', error)
     } finally {
       setLoading(false)
     }
   }
 
-  const formatDuration = (milliseconds: number) => {
-    const minutes = Math.floor(milliseconds / 1000 / 60)
-    if (minutes < 60) return `${minutes}m`
-    const hours = Math.floor(minutes / 60)
-    const remainingMinutes = minutes % 60
-    return `${hours}h ${remainingMinutes}m`
-  }
-
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="loading-spinner"></div>
       </div>
     )
   }
 
+  if (!analytics) {
+    return (
+      <div className="text-center py-12">
+        <Activity className="mx-auto h-12 w-12 text-gray-300" />
+        <h3 className="mt-4 text-lg font-light text-gray-900">No analytics data available</h3>
+        <p className="mt-2 text-sm text-gray-400">Start creating agents to see your analytics.</p>
+      </div>
+    )
+  }
+
+  const stats = [
+    {
+      name: 'Total Agents',
+      value: analytics.totalAgents,
+      change: '+12%',
+      trend: 'up',
+      icon: Users,
+      gradient: 'from-lime-400 to-lime-600'
+    },
+    {
+      name: 'Conversations',
+      value: analytics.totalConversations.toLocaleString(),
+      change: '+23%',
+      trend: 'up',
+      icon: MessageSquare,
+      gradient: 'from-emerald-400 to-emerald-600'
+    },
+    {
+      name: 'Active Now',
+      value: analytics.activeConversations,
+      change: 'Live',
+      trend: 'neutral',
+      icon: Activity,
+      gradient: 'from-cyan-400 to-cyan-600'
+    },
+    {
+      name: 'Total Messages',
+      value: analytics.totalMessages.toLocaleString(),
+      change: '+18%',
+      trend: 'up',
+      icon: BarChart3,
+      gradient: 'from-violet-400 to-violet-600'
+    },
+  ]
+
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h2 className="text-3xl font-bold text-gray-900">Admin Dashboard</h2>
-        <div className="flex space-x-3">
-          <Link
-            to="/conversations"
-            className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
-          >
-            <Eye className="w-4 h-4 mr-2" />
-            View All Conversations
-          </Link>
-          <Link
-            to="/analytics"
-            className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700"
-          >
-            <BarChart3 className="w-4 h-4 mr-2" />
-            Detailed Analytics
-          </Link>
+    <div className="space-y-8">
+      {/* Welcome Section */}
+      <div className="relative overflow-hidden bg-gradient-to-br from-lime-500 via-lime-600 to-emerald-600 rounded-2xl p-8 text-white">
+        <div className="absolute top-0 right-0 -mt-4 -mr-4 w-64 h-64 bg-white/10 rounded-full blur-3xl"></div>
+        <div className="absolute bottom-0 left-0 -mb-4 -ml-4 w-48 h-48 bg-white/10 rounded-full blur-3xl"></div>
+        <div className="relative z-10">
+          <div className="flex items-center space-x-2 mb-2">
+            <Sparkles className="w-5 h-5" />
+            <span className="text-sm font-light opacity-90">Welcome back</span>
+          </div>
+          <h1 className="text-3xl font-light mb-2">Admin Dashboard</h1>
+          <p className="text-lime-50 font-light max-w-2xl">
+            Monitor your AI agents, track conversations, and analyze performance metrics in real-time.
+          </p>
         </div>
       </div>
 
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
-          {error}
-        </div>
-      )}
-
-      {/* Overview Metrics */}
-      {overviewData && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center">
-              <Users className="w-8 h-8 text-blue-600" />
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Total Agents</p>
-                <p className="text-2xl font-bold text-gray-900">{overviewData.totalAgents}</p>
-              </div>
-            </div>
-          </div>
-          
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center">
-              <MessageSquare className="w-8 h-8 text-green-600" />
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Total Conversations</p>
-                <p className="text-2xl font-bold text-gray-900">{overviewData.totalConversations}</p>
-              </div>
-            </div>
-          </div>
-          
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center">
-              <Activity className="w-8 h-8 text-purple-600" />
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Active Now</p>
-                <p className="text-2xl font-bold text-gray-900">{overviewData.activeConversations}</p>
-              </div>
-            </div>
-          </div>
-          
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center">
-              <TrendingUp className="w-8 h-8 text-orange-600" />
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Total Messages</p>
-                <p className="text-2xl font-bold text-gray-900">{overviewData.totalMessages}</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Live Conversations Monitor */}
-      <LiveConversationMonitor />
-
-      {/* Agent Filter for Analytics */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-medium text-gray-900">Analytics Filter</h3>
-        </div>
-        <div className="flex items-center space-x-4">
-          <label className="text-sm font-medium text-gray-700">View analytics for:</label>
-          <select
-            value={selectedAgent}
-            onChange={(e) => setSelectedAgent(e.target.value)}
-            className="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="">All Agents</option>
-            {agents.map(agent => (
-              <option key={agent.id} value={agent.id}>{agent.name}</option>
-            ))}
-          </select>
-        </div>
-      </div>
-
-      {/* Conversation Analytics */}
-      <ConversationAnalytics agentId={selectedAgent || undefined} />
-
-      {/* Top Performing Agents */}
-      {overviewData && overviewData.topPerformingAgents.length > 0 && (
-        <div className="bg-white rounded-lg shadow">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h3 className="text-lg font-medium text-gray-900">Top Performing Agents</h3>
-          </div>
-          <div className="p-6">
-            <div className="space-y-4">
-              {overviewData.topPerformingAgents.map((agent, index) => (
-                <div key={agent.agentId} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                  <div className="flex items-center space-x-4">
-                    <div className="flex items-center justify-center w-8 h-8 bg-blue-100 text-blue-600 rounded-full font-semibold">
-                      {index + 1}
-                    </div>
-                    <div>
-                      <h4 className="text-sm font-medium text-gray-900">{agent.agentName}</h4>
-                      <p className="text-sm text-gray-600">
-                        {agent.conversationCount} conversations
-                      </p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-medium text-gray-900">
-                      Avg Duration: {formatDuration(agent.averageDuration)}
-                    </p>
-                    <Link
-                      to={`/agents/${agent.agentId}`}
-                      className="text-sm text-blue-600 hover:text-blue-800"
-                    >
-                      View Details
-                    </Link>
+      {/* Stats Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {stats.map((stat) => {
+          const Icon = stat.icon
+          return (
+            <div key={stat.name} className="stat-card hover-lift">
+              <div className="flex items-start justify-between">
+                <div className="flex-1">
+                  <p className="text-sm font-light text-gray-500 mb-1">{stat.name}</p>
+                  <p className="text-3xl font-light text-gray-900 mb-2">{stat.value}</p>
+                  <div className="flex items-center space-x-1">
+                    {stat.trend === 'up' && <ArrowUpRight className="w-3 h-3 text-lime-600" />}
+                    <span className={`text-xs font-light ${
+                      stat.trend === 'up' ? 'text-lime-600' : 
+                      stat.trend === 'neutral' ? 'text-gray-400' : 'text-red-600'
+                    }`}>
+                      {stat.change}
+                    </span>
                   </div>
                 </div>
-              ))}
+                <div className={`p-3 rounded-xl bg-gradient-to-br ${stat.gradient}`}>
+                  <Icon className="w-5 h-5 text-white" />
+                </div>
+              </div>
             </div>
+          )
+        })}
+      </div>
+
+      {/* Top Performing Agents */}
+      <div className="card-modern">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h2 className="text-xl font-light text-gray-900">Top Performing Agents</h2>
+            <p className="text-sm text-gray-400 font-light mt-1">Agents with the most conversations</p>
           </div>
+          <Link to="/analytics/performance" className="btn-secondary text-sm">
+            View All
+          </Link>
         </div>
-      )}
+
+        {analytics.topPerformingAgents.length === 0 ? (
+          <div className="text-center py-12">
+            <Users className="mx-auto h-12 w-12 text-gray-300" />
+            <p className="mt-4 text-sm text-gray-400 font-light">No agents found</p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {analytics.topPerformingAgents.map((agent, index) => (
+              <div key={agent.agentId} className="flex items-center space-x-4 p-4 rounded-xl bg-gray-50/50 hover:bg-gray-50 transition-colors">
+                <div className="flex-shrink-0">
+                  <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${
+                    index === 0 ? 'from-lime-400 to-lime-600' :
+                    index === 1 ? 'from-emerald-400 to-emerald-600' :
+                    'from-cyan-400 to-cyan-600'
+                  } flex items-center justify-center`}>
+                    <span className="text-white font-light text-lg">#{index + 1}</span>
+                  </div>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-light text-gray-900 truncate">{agent.agentName}</p>
+                  <p className="text-xs text-gray-400 font-light">
+                    {agent.conversationCount} conversations
+                  </p>
+                </div>
+                <div className="flex-shrink-0">
+                  <div className="text-right">
+                    <p className="text-sm font-light text-gray-900">
+                      {Math.round(agent.averageDuration / 1000 / 60)}m
+                    </p>
+                    <p className="text-xs text-gray-400 font-light">avg duration</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* Quick Actions */}
-      <div className="bg-white rounded-lg shadow">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <h3 className="text-lg font-medium text-gray-900">Quick Actions</h3>
-        </div>
-        <div className="p-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            <Link
-              to="/conversations"
-              className="flex items-center p-4 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors"
-            >
-              <MessageSquare className="w-6 h-6 mr-3" />
-              <div>
-                <h4 className="font-medium">Monitor Conversations</h4>
-                <p className="text-sm text-blue-600">View and search all conversations</p>
-              </div>
-            </Link>
-            
-            <Link
-              to="/analytics"
-              className="flex items-center p-4 bg-green-50 text-green-700 rounded-lg hover:bg-green-100 transition-colors"
-            >
-              <BarChart3 className="w-6 h-6 mr-3" />
-              <div>
-                <h4 className="font-medium">Performance Analytics</h4>
-                <p className="text-sm text-green-600">Detailed performance metrics</p>
-              </div>
-            </Link>
-            
-            <Link
-              to="/agents"
-              className="flex items-center p-4 bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100 transition-colors"
-            >
-              <Users className="w-6 h-6 mr-3" />
-              <div>
-                <h4 className="font-medium">Manage Agents</h4>
-                <p className="text-sm text-purple-600">Configure and deploy agents</p>
-              </div>
-            </Link>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <Link
+          to="/conversations"
+          className="card-modern hover-lift group"
+        >
+          <div className="flex items-center space-x-4">
+            <div className="p-3 rounded-xl bg-gradient-to-br from-lime-400 to-lime-600 group-hover:scale-110 transition-transform">
+              <Eye className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <h4 className="font-light text-gray-900">Monitor Conversations</h4>
+              <p className="text-sm text-gray-400 font-light mt-1">View live interactions</p>
+            </div>
           </div>
-        </div>
+        </Link>
+
+        <Link
+          to="/analytics/performance"
+          className="card-modern hover-lift group"
+        >
+          <div className="flex items-center space-x-4">
+            <div className="p-3 rounded-xl bg-gradient-to-br from-emerald-400 to-emerald-600 group-hover:scale-110 transition-transform">
+              <TrendingUp className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <h4 className="font-light text-gray-900">Performance Analytics</h4>
+              <p className="text-sm text-gray-400 font-light mt-1">Detailed metrics</p>
+            </div>
+          </div>
+        </Link>
+
+        <Link
+          to="/agents"
+          className="card-modern hover-lift group"
+        >
+          <div className="flex items-center space-x-4">
+            <div className="p-3 rounded-xl bg-gradient-to-br from-cyan-400 to-cyan-600 group-hover:scale-110 transition-transform">
+              <Users className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <h4 className="font-light text-gray-900">Manage Agents</h4>
+              <p className="text-sm text-gray-400 font-light mt-1">Configure AI agents</p>
+            </div>
+          </div>
+        </Link>
       </div>
     </div>
   )
