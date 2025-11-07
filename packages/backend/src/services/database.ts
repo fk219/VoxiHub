@@ -1033,3 +1033,112 @@ export class DatabaseService {
     }
   }
 }
+
+  /**
+   * Create deployment
+   */
+  async createDeployment(deploymentData: any): Promise<any> {
+    try {
+      const { data, error } = await this.supabase
+        .from('deployments')
+        .insert([deploymentData])
+        .select()
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
+      return data;
+    } catch (error) {
+      logger.error('Failed to create deployment:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get deployments by agent
+   */
+  async getDeploymentsByAgent(agentId: string): Promise<any[]> {
+    try {
+      const { data, error } = await this.supabase
+        .from('deployments')
+        .select('*')
+        .eq('agent_id', agentId)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        throw error;
+      }
+
+      return data || [];
+    } catch (error) {
+      logger.error('Failed to get deployments by agent:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get deployment by ID
+   */
+  async getDeploymentById(id: string): Promise<any | null> {
+    try {
+      const { data, error} = await this.supabase
+        .from('deployments')
+        .select('*')
+        .eq('id', id)
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
+      return data;
+    } catch (error) {
+      logger.error('Failed to get deployment by ID:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Update deployment
+   */
+  async updateDeployment(id: string, updates: any): Promise<any> {
+    try {
+      const { data, error } = await this.supabase
+        .from('deployments')
+        .update(updates)
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
+      return data;
+    } catch (error) {
+      logger.error('Failed to update deployment:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Delete deployment
+   */
+  async deleteDeployment(id: string): Promise<void> {
+    try {
+      const { error } = await this.supabase
+        .from('deployments')
+        .delete()
+        .eq('id', id);
+
+      if (error) {
+        throw error;
+      }
+    } catch (error) {
+      logger.error('Failed to delete deployment:', error);
+      throw error;
+    }
+  }
+}

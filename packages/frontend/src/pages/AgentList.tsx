@@ -405,6 +405,32 @@ const AgentList: React.FC = () => {
                           View Stats
                         </button>
 
+                        <button
+                          onClick={() => {
+                            navigate(`/agents/${agent.id}/deploy`);
+                            setShowMenu(null);
+                          }}
+                          style={{
+                            width: '100%',
+                            padding: '12px 16px',
+                            border: 'none',
+                            background: 'none',
+                            textAlign: 'left',
+                            cursor: 'pointer',
+                            fontSize: '14px',
+                            fontWeight: 300,
+                            color: '#0f172a',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '12px'
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.background = '#f8fafc'}
+                          onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
+                        >
+                          <MdRocketLaunch size={16} />
+                          Deploy
+                        </button>
+
                         {agent.status === 'draft' ? (
                           <button
                             onClick={() => {

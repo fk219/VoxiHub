@@ -79,6 +79,7 @@ import adminRoutes from './routes/admin';
 import privacyRoutes from './routes/privacy';
 import functionRoutes from './routes/api/v1/functions';
 import knowledgeBaseRoutes from './routes/knowledgeBase';
+import deploymentRoutes from './routes/deployments';
 
 // API routes
 app.get('/api', (req, res) => {
@@ -108,6 +109,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/privacy', privacyRoutes);
 app.use('/api/v1/functions', functionRoutes);
 app.use('/api/knowledge-bases', knowledgeBaseRoutes);
+app.use('/api/deployments', deploymentRoutes);
 
 // Authentication routes with rate limiting
 app.use('/api/auth', authRateLimit.middleware());
