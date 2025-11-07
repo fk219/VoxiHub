@@ -19,6 +19,8 @@ import { securityHeaders, sanitizeInput, securityLogger, corsOptions } from './m
 import { createAPIRateLimit, createAuthRateLimit } from './middleware/rateLimiting';
 import { logger } from './utils/logger';
 import { config } from './config/env';
+import { redis } from './config/redis';
+import { redis } from './config/redis';
 // Redis temporarily disabled
 // import { redis, connectRedis } from './config/redis';
 
