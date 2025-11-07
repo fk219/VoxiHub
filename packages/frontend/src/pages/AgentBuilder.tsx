@@ -6,7 +6,7 @@ import {
   MdRocketLaunch,
   MdPlayArrow,
   MdMic,
-  MdBrain,
+  MdPsychology,
   MdSettings,
   MdCode,
   MdPhone
@@ -168,7 +168,7 @@ const AgentBuilder: React.FC = () => {
   const tabs = [
     { id: 'basic', label: 'Basic Info', icon: MdSettings },
     { id: 'voice', label: 'Voice', icon: MdMic },
-    { id: 'llm', label: 'AI Model', icon: MdBrain },
+    { id: 'llm', label: 'AI Model', icon: MdPsychology },
     { id: 'advanced', label: 'Advanced', icon: MdCode },
     { id: 'test', label: 'Test', icon: MdPlayArrow }
   ];
