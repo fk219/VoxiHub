@@ -1140,4 +1140,357 @@ export class DatabaseService {
       throw error;
     }
   }
+
+  // ==================== API KEYS ====================
+
+  async createApiKey(data: any): Promise<any> {
+    const { data: apiKey, error } = await this.serviceSupabase
+      .from('api_keys')
+      .insert(data)
+      .select()
+      .single();
+
+    if (error) {
+      logger.error('Failed to create API key:', error);
+      throw error;
+    }
+
+    return apiKey;
+  }
+
+  async getApiKeyByHash(hash: string): Promise<any | null> {
+    const { data, error } = await this.serviceSupabase
+      .from('api_keys')
+      .select('*')
+      .eq('key_hash', hash)
+      .single();
+
+    if (error && error.code !== 'PGRST116') {
+      logger.error('Failed to get API key by hash:', error);
+      throw error;
+    }
+
+    return data;
+  }
+
+  async getApiKeyById(id: string): Promise<any | null> {
+    const { data, error } = await this.serviceSupabase
+      .from('api_keys')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error && error.code !== 'PGRST116') {
+      logger.error('Failed to get API key by ID:', error);
+      throw error;
+    }
+
+    return data;
+  }
+
+  async getApiKeysByUserId(userId: string): Promise<any[]> {
+    const { data, error } = await this.serviceSupabase
+      .from('api_keys')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      logger.error('Failed to get API keys by user ID:', error);
+      throw error;
+    }
+
+    return data || [];
+  }
+
+  async updateApiKey(id: string, updates: any): Promise<any> {
+    const { data, error } = await this.serviceSupabase
+      .from('api_keys')
+      .update(updates)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      logger.error('Failed to update API key:', error);
+      throw error;
+    }
+
+    return data;
+  }
+
+  async updateApiKeyUsage(id: string): Promise<void> {
+    const { error } = await this.serviceSupabase
+      .from('api_keys')
+      .update({
+        last_used_at: new Date().toISOString(),
+        usage_count: this.serviceSupabase.rpc('increment', { row_id: id }),
+      })
+      .eq('id', id);
+
+    if (error) {
+      logger.error('Failed to update API key usage:', error);
+    }
+  }
+
+  async deleteApiKey(id: string): Promise<void> {
+    const { error } = await this.serviceSupabase
+      .from('api_keys')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      logger.error('Failed to delete API key:', error);
+      throw error;
+    }
+  }
+
+  async getApiKeyUsageStats(id: string): Promise<any> {
+    // Get usage stats for today and this month
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const thisMonth = new Date();
+    thisMonth.setDate(1);
+    thisMonth.setHours(0, 0, 0, 0);
+
+    // This would require a separate usage_logs table for detailed tracking
+    // For now, return basic stats
+    return {
+      requestsToday: 0,
+      requestsThisMonth: 0,
+    };
+  }
+
+  // ==================== WEBHOOKS ====================
+
+  async createWebhook(data: any): Promise<any> {
+    const { data: webhook, error } = await this.serviceSupabase
+      .from('webhooks')
+      .insert(data)
+      .select()
+      .single();
+
+    if (error) {
+      logger.error('Failed to create webhook:', error);
+      throw error;
+    }
+
+    return webhook;
+  }
+
+  async getWebhookById(id: string): Promise<any | null> {
+    const { data, error } = await this.serviceSupabase
+      .from('webhooks')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error && error.code !== 'PGRST116') {
+      logger.error('Failed to get webhook by ID:', error);
+      throw error;
+    }
+
+    return data;
+  }
+
+  async getWebhooks(filters: any): Promise<any[]> {
+    let query = this.serviceSupabase.from('webhooks').select('*');
+
+    if (filters.user_id) {
+      query = query.eq('user_id', filters.user_id);
+    }
+    if (filters.agent_id) {
+      query = query.eq('agent_id', filters.agent_id);
+    }
+    if (filters.enabled !== undefined) {
+      query = query.eq('enabled', filters.enabled);
+    }
+
+    const { data, error } = await query.order('created_at', { ascending: false });
+
+    if (error) {
+      logger.error('Failed to get webhooks:', error);
+      throw error;
+    }
+
+    return data || [];
+  }
+
+  async updateWebhook(id: string, updates: any): Promise<any> {
+    const { data, error } = await this.serviceSupabase
+      .from('webhooks')
+      .update(updates)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      logger.error('Failed to update webhook:', error);
+      throw error;
+    }
+
+    return data;
+  }
+
+  async deleteWebhook(id: string): Promise<void> {
+    const { error } = await this.serviceSupabase
+      .from('webhooks')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      logger.error('Failed to delete webhook:', error);
+      throw error;
+    }
+  }
+
+  async createWebhookLog(log: any): Promise<void> {
+    const { error } = await this.serviceSupabase
+      .from('webhook_logs')
+      .insert(log);
+
+    if (error) {
+      logger.error('Failed to create webhook log:', error);
+      throw error;
+    }
+  }
+
+  async getWebhookLogs(webhookId: string, limit: number = 50): Promise<any[]> {
+    const { data, error } = await this.serviceSupabase
+      .from('webhook_logs')
+      .select('*')
+      .eq('webhook_id', webhookId)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    if (error) {
+      logger.error('Failed to get webhook logs:', error);
+      throw error;
+    }
+
+    return data || [];
+  }
+
+  // ==================== IVR MENUS ====================
+
+  async createIVRMenu(data: any): Promise<any> {
+    const { data: menu, error } = await this.serviceSupabase
+      .from('ivr_menus')
+      .insert(data)
+      .select()
+      .single();
+
+    if (error) {
+      logger.error('Failed to create IVR menu:', error);
+      throw error;
+    }
+
+    return menu;
+  }
+
+  async getIVRMenus(userId: string): Promise<any[]> {
+    const { data, error } = await this.serviceSupabase
+      .from('ivr_menus')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      logger.error('Failed to get IVR menus:', error);
+      throw error;
+    }
+
+    return data || [];
+  }
+
+  async getIVRMenuById(id: string, userId: string): Promise<any | null> {
+    const { data, error } = await this.serviceSupabase
+      .from('ivr_menus')
+      .select('*')
+      .eq('id', id)
+      .eq('user_id', userId)
+      .single();
+
+    if (error && error.code !== 'PGRST116') {
+      logger.error('Failed to get IVR menu by ID:', error);
+      throw error;
+    }
+
+    return data;
+  }
+
+  async updateIVRMenu(id: string, updates: any): Promise<any> {
+    const { data, error } = await this.serviceSupabase
+      .from('ivr_menus')
+      .update(updates)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      logger.error('Failed to update IVR menu:', error);
+      throw error;
+    }
+
+    return data;
+  }
+
+  async deleteIVRMenu(id: string): Promise<void> {
+    const { error } = await this.serviceSupabase
+      .from('ivr_menus')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      logger.error('Failed to delete IVR menu:', error);
+      throw error;
+    }
+  }
+
+  async createIVRSession(data: any): Promise<any> {
+    const { data: session, error } = await this.serviceSupabase
+      .from('ivr_sessions')
+      .insert(data)
+      .select()
+      .single();
+
+    if (error) {
+      logger.error('Failed to create IVR session:', error);
+      throw error;
+    }
+
+    return session;
+  }
+
+  async getIVRSession(sessionId: string): Promise<any | null> {
+    const { data, error } = await this.serviceSupabase
+      .from('ivr_sessions')
+      .select('*')
+      .eq('session_id', sessionId)
+      .single();
+
+    if (error && error.code !== 'PGRST116') {
+      logger.error('Failed to get IVR session:', error);
+      throw error;
+    }
+
+    return data;
+  }
+
+  async updateIVRSession(sessionId: string, updates: any): Promise<any> {
+    const { data, error } = await this.serviceSupabase
+      .from('ivr_sessions')
+      .update(updates)
+      .eq('session_id', sessionId)
+      .select()
+      .single();
+
+    if (error) {
+      logger.error('Failed to update IVR session:', error);
+      throw error;
+    }
+
+    return data;
+  }
 }

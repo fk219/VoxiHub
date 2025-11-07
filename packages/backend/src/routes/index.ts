@@ -15,6 +15,9 @@ export async function setupRoutes(app: Express, services: any) {
   const adminRoutes = (await import('./admin')).default;
   const privacyRoutes = (await import('./privacy')).default;
   const functionRoutes = (await import('./api/v1/functions')).default;
+  const apiKeysRoutes = (await import('./api/v1/apiKeys')).default;
+  const webhooksRoutes = (await import('./api/v1/webhooks')).default;
+  const v1AgentsRoutes = (await import('./api/v1/agents')).default;
   
   // Try to import optional routes
   let knowledgeBaseRoutes, deploymentRoutes;
@@ -43,7 +46,12 @@ export async function setupRoutes(app: Express, services: any) {
   app.use('/api/sip', sipRoutes);
   app.use('/api/admin', adminRoutes);
   app.use('/api/privacy', privacyRoutes);
+  
+  // API v1 routes
+  app.use('/api/v1/agents', v1AgentsRoutes);
   app.use('/api/v1/functions', functionRoutes);
+  app.use('/api/v1/api-keys', apiKeysRoutes);
+  app.use('/api/v1/webhooks', webhooksRoutes);
   
   if (knowledgeBaseRoutes) {
     app.use('/api/knowledge-bases', knowledgeBaseRoutes);

@@ -1,6 +1,6 @@
 import { Agent, WidgetConfig, SipConfig } from '@/types'
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api'
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001'
 
 class ApiClient {
   private baseUrl: string
@@ -31,38 +31,61 @@ class ApiClient {
     return response.json()
   }
 
+  // Generic HTTP methods
+  async get<T>(endpoint: string): Promise<T> {
+    return this.request<T>(endpoint, { method: 'GET' })
+  }
+
+  async post<T>(endpoint: string, data?: any): Promise<T> {
+    return this.request<T>(endpoint, {
+      method: 'POST',
+      body: data ? JSON.stringify(data) : undefined,
+    })
+  }
+
+  async put<T>(endpoint: string, data?: any): Promise<T> {
+    return this.request<T>(endpoint, {
+      method: 'PUT',
+      body: data ? JSON.stringify(data) : undefined,
+    })
+  }
+
+  async delete<T>(endpoint: string): Promise<T> {
+    return this.request<T>(endpoint, { method: 'DELETE' })
+  }
+
   // Agent endpoints
   async getAgents(): Promise<Agent[]> {
-    return this.request<Agent[]>('/agents')
+    return this.request<Agent[]>('/api/agents')
   }
 
   async getAgent(id: string): Promise<Agent> {
-    return this.request<Agent>(`/agents/${id}`)
+    return this.request<Agent>(`/api/agents/${id}`)
   }
 
   async createAgent(agent: Omit<Agent, 'id' | 'createdAt' | 'updatedAt'>): Promise<Agent> {
-    return this.request<Agent>('/agents', {
+    return this.request<Agent>('/api/agents', {
       method: 'POST',
       body: JSON.stringify(agent),
     })
   }
 
   async updateAgent(id: string, agent: Partial<Agent>): Promise<Agent> {
-    return this.request<Agent>(`/agents/${id}`, {
+    return this.request<Agent>(`/api/agents/${id}`, {
       method: 'PUT',
       body: JSON.stringify(agent),
     })
   }
 
   async deleteAgent(id: string): Promise<void> {
-    return this.request<void>(`/agents/${id}`, {
+    return this.request<void>(`/api/agents/${id}`, {
       method: 'DELETE',
     })
   }
 
   // Widget configuration endpoints
   async updateWidgetConfig(agentId: string, config: Partial<WidgetConfig>): Promise<WidgetConfig> {
-    return this.request<WidgetConfig>(`/agents/${agentId}/widget-config`, {
+    return this.request<WidgetConfig>(`/api/agents/${agentId}/widget-config`, {
       method: 'POST',
       body: JSON.stringify(config),
     })
@@ -70,7 +93,7 @@ class ApiClient {
 
   // SIP configuration endpoints
   async updateSipConfig(agentId: string, config: Partial<SipConfig>): Promise<SipConfig> {
-    return this.request<SipConfig>(`/agents/${agentId}/sip-config`, {
+    return this.request<SipConfig>(`/api/agents/${agentId}/sip-config`, {
       method: 'POST',
       body: JSON.stringify(config),
     })
@@ -81,12 +104,12 @@ class ApiClient {
     widget: { status: 'active' | 'inactive' | 'error', lastDeployed?: string }
     sip: { status: 'active' | 'inactive' | 'error', lastDeployed?: string }
   }> {
-    return this.request(`/agents/${agentId}/deployment-status`)
+    return this.request(`/api/agents/${agentId}/deployment-status`)
   }
 
   // Generate deployment code
   async generateWidgetCode(agentId: string): Promise<{ embedCode: string, scriptUrl: string }> {
-    return this.request(`/agents/${agentId}/widget-code`)
+    return this.request(`/api/agents/${agentId}/widget-code`)
   }
 
   // Admin endpoints for conversation monitoring
@@ -110,7 +133,7 @@ class ApiClient {
       }
     })
     
-    return this.request<any[]>(`/admin/conversations?${params.toString()}`)
+    return this.request<any[]>(`/api/admin/conversations?${params.toString()}`)
   }
 
   async getConversationStats(filters: {
@@ -128,15 +151,15 @@ class ApiClient {
       }
     })
     
-    return this.request(`/admin/conversations/stats?${params.toString()}`)
+    return this.request(`/api/admin/conversations/stats?${params.toString()}`)
   }
 
   async getConversationTranscript(conversationId: string, format: 'json' | 'txt' | 'csv' = 'json'): Promise<any> {
-    return this.request(`/admin/conversations/${conversationId}/transcript?format=${format}`)
+    return this.request(`/api/admin/conversations/${conversationId}/transcript?format=${format}`)
   }
 
   async downloadConversationTranscript(conversationId: string, format: 'txt' | 'csv'): Promise<void> {
-    const url = `${this.baseUrl}/admin/conversations/${conversationId}/transcript?format=${format}`
+    const url = `${this.baseUrl}/api/admin/conversations/${conversationId}/transcript?format=${format}`
     const response = await fetch(url, {
       headers: {
         'Content-Type': 'application/json',
@@ -171,7 +194,7 @@ class ApiClient {
       }
     })
     
-    return this.request(`/admin/analytics/overview?${params.toString()}`)
+    return this.request(`/api/admin/analytics/overview?${params.toString()}`)
   }
 
   async getPerformanceAnalytics(filters: {
@@ -189,11 +212,11 @@ class ApiClient {
       }
     })
     
-    return this.request(`/admin/analytics/performance?${params.toString()}`)
+    return this.request(`/api/admin/analytics/performance?${params.toString()}`)
   }
 
   async getLiveConversations(): Promise<any[]> {
-    return this.request<any[]>('/admin/conversations/live')
+    return this.request<any[]>('/api/admin/conversations/live')
   }
 }
 

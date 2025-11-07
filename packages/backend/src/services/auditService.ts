@@ -31,7 +31,23 @@ export enum AuditAction {
   // Security actions
   SUSPICIOUS_ACTIVITY = 'suspicious_activity',
   RATE_LIMIT_EXCEEDED = 'rate_limit_exceeded',
-  UNAUTHORIZED_ACCESS = 'unauthorized_access'
+  UNAUTHORIZED_ACCESS = 'unauthorized_access',
+  
+  // API Key actions
+  API_KEY_CREATED = 'api_key_created',
+  API_KEY_UPDATED = 'api_key_updated',
+  API_KEY_REVOKED = 'api_key_revoked',
+  API_KEY_DELETED = 'api_key_deleted',
+  
+  // Webhook actions
+  WEBHOOK_CREATED = 'webhook_created',
+  WEBHOOK_UPDATED = 'webhook_updated',
+  WEBHOOK_DELETED = 'webhook_deleted',
+  
+  // IVR actions
+  IVR_MENU_CREATED = 'ivr_menu_created',
+  IVR_MENU_UPDATED = 'ivr_menu_updated',
+  IVR_MENU_DELETED = 'ivr_menu_deleted'
 }
 
 export interface AuditLogEntry {

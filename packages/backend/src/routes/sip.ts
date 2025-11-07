@@ -3,11 +3,14 @@ import Joi from 'joi';
 import { SipService } from '../services/sip';
 import { OutboundCallService } from '../services/outboundCallService';
 import { DatabaseService } from '../services/database';
-import { authMiddleware } from '../middleware/auth';
+import { authenticateToken } from '../middleware/auth';
 import { logger } from '../utils/logger';
 import { CreateSipConfigRequest } from '../database/types';
 
 const router = express.Router();
+
+// Create auth middleware instance
+const authMiddleware = authenticateToken();
 
 // Validation schemas
 const sipConfigSchema = Joi.object({
