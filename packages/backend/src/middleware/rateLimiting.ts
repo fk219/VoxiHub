@@ -47,6 +47,12 @@ export class RateLimiter {
   middleware() {
     return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
       try {
+        // Skip rate limiting if Redis is not connected
+        if (!this.redis || !this.redis.isOpen) {
+          next();
+          return;
+        }
+
         const key = this.options.keyGenerator(req);
         const now = Date.now();
         const windowStart = now - this.options.windowMs;

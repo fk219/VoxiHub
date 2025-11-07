@@ -19,7 +19,8 @@ import { securityHeaders, sanitizeInput, securityLogger, corsOptions } from './m
 import { createAPIRateLimit, createAuthRateLimit } from './middleware/rateLimiting';
 import { logger } from './utils/logger';
 import { config } from './config/env';
-import { redis, connectRedis } from './config/redis';
+// Redis temporarily disabled
+// import { redis, connectRedis } from './config/redis';
 
 // Initialize Express app
 const app = express();
@@ -44,7 +45,7 @@ const dbService = new DatabaseService();
 const auditService = new AuditService(dbService);
 const sessionService = new SessionService(auditService);
 const functionRegistry = new FunctionRegistry(auditService);
-const conversationService = new ConversationService(dbService, redis);
+const conversationService = new ConversationService(dbService, null as any);
 const sttService = new STTService();
 const ttsService = new TTSService();
 const sipService = new SipService(dbService, conversationService);
@@ -184,9 +185,9 @@ app.use('*', (req, res) => {
 // Start server
 async function startServer() {
   try {
-    // Connect to Redis
-    await connectRedis();
-    logger.info('Connected to Redis');
+    // Redis temporarily disabled
+    // await connectRedis();
+    logger.info('Starting server without Redis (sessions and rate limiting disabled)');
 
     // Test Supabase connection
     const { data, error } = await supabase.from('_health').select('*').limit(1);
