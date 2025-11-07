@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Search, Filter, Download, Eye, MessageSquare, Phone, Clock, User } from 'lucide-react'
+import { Search, Filter, Download, Eye, MessageSquare, Phone, Clock, User, X, ChevronLeft, ChevronRight } from 'lucide-react'
 import { apiClient } from '@/lib/api'
 import { ConversationWithDetails } from '@/types'
 
@@ -28,7 +28,6 @@ const ConversationMonitoring: React.FC = () => {
     endDate: ''
   })
   const [currentPage, setCurrentPage] = useState(0)
-  const [totalPages, setTotalPages] = useState(0)
   const pageSize = 20
 
   useEffect(() => {
@@ -48,13 +47,13 @@ const ConversationMonitoring: React.FC = () => {
   const loadConversations = async () => {
     try {
       setLoading(true)
+      setError(null)
       const data = await apiClient.getConversations({
         ...filters,
         limit: pageSize,
         offset: currentPage * pageSize
       })
       setConversations(data)
-      setTotalPages(Math.ceil(data.length / pageSize)) // This is simplified - in production you'd get total count from API
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load conversations')
     } finally {
@@ -64,7 +63,7 @@ const ConversationMonitoring: React.FC = () => {
 
   const handleFilterChange = (key: keyof ConversationFilters, value: string) => {
     setFilters(prev => ({ ...prev, [key]: value }))
-    setCurrentPage(0) // Reset to first page when filters change
+    setCurrentPage(0)
   }
 
   const clearFilters = () => {
@@ -89,387 +88,282 @@ const ConversationMonitoring: React.FC = () => {
     }
   }
 
-  const downloadTranscript = async (conversationId: string, format: 'txt' | 'csv') => {
-    try {
-      await apiClient.downloadConversationTranscript(conversationId, format)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to download transcript')
-    }
-  }
-
   const formatDuration = (startTime: string, endTime?: string) => {
     if (!endTime) return 'Ongoing'
-    const start = new Date(startTime)
-    const end = new Date(endTime)
-    const duration = Math.floor((end.getTime() - start.getTime()) / 1000 / 60) // minutes
-    return `${duration}m`
+    const duration = new Date(endTime).getTime() - new Date(startTime).getTime()
+    const minutes = Math.floor(duration / 60000)
+    const seconds = Math.floor((duration % 60000) / 1000)
+    return `${minutes}m ${seconds}s`
   }
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'active': return 'bg-green-100 text-green-800'
-      case 'ended': return 'bg-gray-100 text-gray-800'
-      case 'transferred': return 'bg-yellow-100 text-yellow-800'
-      default: return 'bg-gray-100 text-gray-800'
+      case 'active': return 'bg-lime-100 text-lime-700 border-lime-200'
+      case 'ended': return 'bg-slate-100 text-slate-700 border-slate-200'
+      case 'transferred': return 'bg-cyan-100 text-cyan-700 border-cyan-200'
+      default: return 'bg-slate-100 text-slate-700 border-slate-200'
     }
-  }
-
-  const getChannelIcon = (channel: string) => {
-    return channel === 'sip' ? <Phone className="w-4 h-4" /> : <MessageSquare className="w-4 h-4" />
-  }
-
-  if (loading && conversations.length === 0) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-      </div>
-    )
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h2 className="text-3xl font-bold text-gray-900">Conversation Monitoring</h2>
+      {/* Header */}
+      <div className="bg-white rounded-xl border border-slate-200 p-6">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h2 className="text-2xl font-light text-slate-900">Conversation Monitoring</h2>
+            <p className="text-sm text-slate-500 font-light mt-1">Track and analyze all conversations in real-time</p>
+          </div>
+          <button className="px-4 py-2 text-sm font-light text-lime-600 hover:text-lime-700 border border-lime-200 rounded-lg hover:bg-lime-50 transition-colors flex items-center space-x-2">
+            <Download className="w-4 h-4" />
+            <span>Export</span>
+          </button>
+        </div>
+
+        {/* Filters */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Search conversations..."
+              value={filters.search}
+              onChange={(e) => handleFilterChange('search', e.target.value)}
+              className="w-full pl-10 pr-4 py-2 text-sm font-light border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-lime-500 focus:border-transparent"
+            />
+          </div>
+
+          <select
+            value={filters.agentId}
+            onChange={(e) => handleFilterChange('agentId', e.target.value)}
+            className="px-4 py-2 text-sm font-light border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-lime-500 focus:border-transparent"
+          >
+            <option value="">All Agents</option>
+            {agents.map(agent => (
+              <option key={agent.id} value={agent.id}>{agent.name}</option>
+            ))}
+          </select>
+
+          <select
+            value={filters.channel}
+            onChange={(e) => handleFilterChange('channel', e.target.value)}
+            className="px-4 py-2 text-sm font-light border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-lime-500 focus:border-transparent"
+          >
+            <option value="">All Channels</option>
+            <option value="widget">Widget</option>
+            <option value="sip">Phone</option>
+          </select>
+
+          <select
+            value={filters.status}
+            onChange={(e) => handleFilterChange('status', e.target.value)}
+            className="px-4 py-2 text-sm font-light border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-lime-500 focus:border-transparent"
+          >
+            <option value="">All Status</option>
+            <option value="active">Active</option>
+            <option value="ended">Ended</option>
+            <option value="transferred">Transferred</option>
+          </select>
+
+          <input
+            type="date"
+            value={filters.startDate}
+            onChange={(e) => handleFilterChange('startDate', e.target.value)}
+            className="px-4 py-2 text-sm font-light border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-lime-500 focus:border-transparent"
+          />
+
+          <input
+            type="date"
+            value={filters.endDate}
+            onChange={(e) => handleFilterChange('endDate', e.target.value)}
+            className="px-4 py-2 text-sm font-light border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-lime-500 focus:border-transparent"
+          />
+        </div>
+
+        {(filters.agentId || filters.channel || filters.status || filters.search || filters.startDate || filters.endDate) && (
+          <button
+            onClick={clearFilters}
+            className="mt-3 px-4 py-2 text-sm font-light text-slate-600 hover:text-slate-900 flex items-center space-x-2"
+          >
+            <X className="w-4 h-4" />
+            <span>Clear Filters</span>
+          </button>
+        )}
       </div>
 
+      {/* Error Message */}
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
-          {error}
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+          <p className="text-sm font-light text-red-700">{error}</p>
         </div>
       )}
 
-      {/* Filters */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Agent</label>
-            <select
-              value={filters.agentId}
-              onChange={(e) => handleFilterChange('agentId', e.target.value)}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">All Agents</option>
-              {agents.map(agent => (
-                <option key={agent.id} value={agent.id}>{agent.name}</option>
-              ))}
-            </select>
+      {/* Conversations List */}
+      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="w-8 h-8 border-2 border-lime-500 border-t-transparent rounded-full animate-spin"></div>
           </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Channel</label>
-            <select
-              value={filters.channel}
-              onChange={(e) => handleFilterChange('channel', e.target.value)}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">All Channels</option>
-              <option value="widget">Widget</option>
-              <option value="sip">Phone</option>
-            </select>
+        ) : conversations.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            <MessageSquare className="w-12 h-12 text-slate-300 mb-4" />
+            <h3 className="text-lg font-light text-slate-900 mb-2">No conversations found</h3>
+            <p className="text-sm text-slate-500">Try adjusting your filters or check back later.</p>
           </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-            <select
-              value={filters.status}
-              onChange={(e) => handleFilterChange('status', e.target.value)}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">All Status</option>
-              <option value="active">Active</option>
-              <option value="ended">Ended</option>
-              <option value="transferred">Transferred</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
-            <input
-              type="date"
-              value={filters.startDate}
-              onChange={(e) => handleFilterChange('startDate', e.target.value)}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
-            <input
-              type="date"
-              value={filters.endDate}
-              onChange={(e) => handleFilterChange('endDate', e.target.value)}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Search</label>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-              <input
-                type="text"
-                placeholder="Search conversations..."
-                value={filters.search}
-                onChange={(e) => handleFilterChange('search', e.target.value)}
-                className="w-full pl-10 border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-4 flex justify-end">
-          <button
-            onClick={clearFilters}
-            className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800"
-          >
-            Clear Filters
-          </button>
-        </div>
-      </div>
-
-      {/* Conversations Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Conversation
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Agent
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Channel
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Duration
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Started
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {conversations.map((conversation) => (
-                <tr key={conversation.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center">
-                      {conversation.phone_number && (
-                        <div className="flex items-center text-sm text-gray-600">
-                          <User className="w-4 h-4 mr-1" />
-                          {conversation.phone_number}
+        ) : (
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-slate-50 border-b border-slate-200">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-light text-slate-500 uppercase tracking-wider">Conversation</th>
+                    <th className="px-6 py-3 text-left text-xs font-light text-slate-500 uppercase tracking-wider">Agent</th>
+                    <th className="px-6 py-3 text-left text-xs font-light text-slate-500 uppercase tracking-wider">Channel</th>
+                    <th className="px-6 py-3 text-left text-xs font-light text-slate-500 uppercase tracking-wider">Status</th>
+                    <th className="px-6 py-3 text-left text-xs font-light text-slate-500 uppercase tracking-wider">Duration</th>
+                    <th className="px-6 py-3 text-left text-xs font-light text-slate-500 uppercase tracking-wider">Started</th>
+                    <th className="px-6 py-3 text-left text-xs font-light text-slate-500 uppercase tracking-wider">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200">
+                  {conversations.map((conversation) => (
+                    <tr key={conversation.id} className="hover:bg-slate-50 transition-colors">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center space-x-3">
+                          <div className="p-2 rounded-lg bg-lime-100">
+                            {conversation.channel === 'sip' ? (
+                              <Phone className="w-4 h-4 text-lime-600" />
+                            ) : (
+                              <MessageSquare className="w-4 h-4 text-lime-600" />
+                            )}
+                          </div>
+                          <div>
+                            <p className="text-sm font-light text-slate-900">{conversation.id.substring(0, 8)}</p>
+                            {conversation.phone_number && (
+                              <p className="text-xs text-slate-500 font-light flex items-center space-x-1">
+                                <User className="w-3 h-3" />
+                                <span>{conversation.phone_number}</span>
+                              </p>
+                            )}
+                          </div>
                         </div>
-                      )}
-                      {!conversation.phone_number && (
-                        <div className="text-sm text-gray-600">
-                          Web Visitor
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <p className="text-sm font-light text-slate-900">{conversation.agent?.name || 'Unknown'}</p>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="px-2 py-1 text-xs font-light bg-slate-100 text-slate-700 rounded-full capitalize">
+                          {conversation.channel}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`px-2 py-1 text-xs font-light rounded-full border capitalize ${getStatusColor(conversation.status)}`}>
+                          {conversation.status}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center space-x-1 text-sm font-light text-slate-600">
+                          <Clock className="w-4 h-4" />
+                          <span>{formatDuration(conversation.started_at, conversation.ended_at)}</span>
                         </div>
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-medium text-gray-900">
-                      {conversation.agent?.name || 'Unknown Agent'}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center text-sm text-gray-600">
-                      {getChannelIcon(conversation.channel)}
-                      <span className="ml-2 capitalize">{conversation.channel}</span>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(conversation.status)}`}>
-                      {conversation.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                    <div className="flex items-center">
-                      <Clock className="w-4 h-4 mr-1" />
-                      {formatDuration(conversation.started_at, conversation.ended_at)}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                    {new Date(conversation.started_at).toLocaleString()}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <div className="flex space-x-2">
-                      <button
-                        onClick={() => viewConversation(conversation)}
-                        className="text-blue-600 hover:text-blue-900 flex items-center"
-                      >
-                        <Eye className="w-4 h-4 mr-1" />
-                        View
-                      </button>
-                      <button
-                        onClick={() => downloadTranscript(conversation.id, 'txt')}
-                        className="text-green-600 hover:text-green-900 flex items-center"
-                      >
-                        <Download className="w-4 h-4 mr-1" />
-                        TXT
-                      </button>
-                      <button
-                        onClick={() => downloadTranscript(conversation.id, 'csv')}
-                        className="text-green-600 hover:text-green-900 flex items-center"
-                      >
-                        <Download className="w-4 h-4 mr-1" />
-                        CSV
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {conversations.length === 0 && !loading && (
-          <div className="text-center py-12">
-            <MessageSquare className="mx-auto h-12 w-12 text-gray-400" />
-            <h3 className="mt-2 text-sm font-medium text-gray-900">No conversations found</h3>
-            <p className="mt-1 text-sm text-gray-500">
-              Try adjusting your filters or check back later.
-            </p>
-          </div>
-        )}
-
-        {/* Pagination */}
-        {totalPages > 1 && (
-          <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
-            <div className="flex-1 flex justify-between sm:hidden">
-              <button
-                onClick={() => setCurrentPage(Math.max(0, currentPage - 1))}
-                disabled={currentPage === 0}
-                className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
-              >
-                Previous
-              </button>
-              <button
-                onClick={() => setCurrentPage(Math.min(totalPages - 1, currentPage + 1))}
-                disabled={currentPage >= totalPages - 1}
-                className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
-              >
-                Next
-              </button>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <p className="text-sm font-light text-slate-600">
+                          {new Date(conversation.started_at).toLocaleString()}
+                        </p>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <button
+                          onClick={() => viewConversation(conversation)}
+                          className="p-2 text-lime-600 hover:bg-lime-50 rounded-lg transition-colors"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-            <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
-              <div>
-                <p className="text-sm text-gray-700">
-                  Showing page <span className="font-medium">{currentPage + 1}</span> of{' '}
-                  <span className="font-medium">{totalPages}</span>
-                </p>
-              </div>
-              <div>
-                <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px">
-                  <button
-                    onClick={() => setCurrentPage(Math.max(0, currentPage - 1))}
-                    disabled={currentPage === 0}
-                    className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
-                  >
-                    Previous
-                  </button>
-                  <button
-                    onClick={() => setCurrentPage(Math.min(totalPages - 1, currentPage + 1))}
-                    disabled={currentPage >= totalPages - 1}
-                    className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
-                  >
-                    Next
-                  </button>
-                </nav>
+
+            {/* Pagination */}
+            <div className="flex items-center justify-between px-6 py-4 border-t border-slate-200">
+              <p className="text-sm font-light text-slate-600">
+                Showing {currentPage * pageSize + 1} to {Math.min((currentPage + 1) * pageSize, conversations.length)} of {conversations.length} conversations
+              </p>
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={() => setCurrentPage(prev => Math.max(0, prev - 1))}
+                  disabled={currentPage === 0}
+                  className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <span className="text-sm font-light text-slate-600">
+                  Page {currentPage + 1}
+                </span>
+                <button
+                  onClick={() => setCurrentPage(prev => prev + 1)}
+                  disabled={conversations.length < pageSize}
+                  className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
               </div>
             </div>
-          </div>
+          </>
         )}
       </div>
 
       {/* Transcript Modal */}
       {showTranscript && selectedConversation && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-20 mx-auto p-5 border w-11/12 max-w-4xl shadow-lg rounded-md bg-white">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-medium text-gray-900">
-                Conversation Transcript
-              </h3>
-              <button
-                onClick={() => setShowTranscript(false)}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <span className="sr-only">Close</span>
-                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-
-            <div className="mb-4 p-4 bg-gray-50 rounded-lg">
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <span className="font-medium">Agent:</span> {selectedConversation.agent?.name}
-                </div>
-                <div>
-                  <span className="font-medium">Channel:</span> {selectedConversation.channel}
-                </div>
-                <div>
-                  <span className="font-medium">Status:</span> {selectedConversation.status}
-                </div>
-                <div>
-                  <span className="font-medium">Duration:</span> {formatDuration(selectedConversation.started_at, selectedConversation.ended_at)}
-                </div>
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-3xl w-full max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between p-6 border-b border-slate-200">
+              <div>
+                <h3 className="text-xl font-light text-slate-900">Conversation Transcript</h3>
+                <p className="text-sm text-slate-500 font-light mt-1">
+                  {new Date(selectedConversation.started_at).toLocaleString()}
+                </p>
               </div>
-            </div>
-
-            <div className="max-h-96 overflow-y-auto border rounded-lg">
-              {selectedConversation.messages && selectedConversation.messages.length > 0 ? (
-                <div className="p-4 space-y-4">
-                  {selectedConversation.messages.map((message, index) => (
-                    <div key={index} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                      <div className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
-                        message.role === 'user' 
-                          ? 'bg-blue-600 text-white' 
-                          : 'bg-gray-200 text-gray-900'
-                      }`}>
-                        <div className="text-sm">{message.content}</div>
-                        <div className={`text-xs mt-1 ${
-                          message.role === 'user' ? 'text-blue-100' : 'text-gray-500'
-                        }`}>
-                          {new Date(message.created_at).toLocaleTimeString()}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="p-8 text-center text-gray-500">
-                  No messages in this conversation
-                </div>
-              )}
-            </div>
-
-            <div className="mt-4 flex justify-end space-x-2">
-              <button
-                onClick={() => downloadTranscript(selectedConversation.id, 'txt')}
-                className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
-              >
-                Download TXT
-              </button>
-              <button
-                onClick={() => downloadTranscript(selectedConversation.id, 'csv')}
-                className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
-              >
-                Download CSV
-              </button>
               <button
                 onClick={() => setShowTranscript(false)}
-                className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400"
+                className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
               >
-                Close
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+              {selectedConversation.messages?.map((message, index) => (
+                <div
+                  key={index}
+                  className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                >
+                  <div
+                    className={`max-w-[70%] px-4 py-3 rounded-lg ${
+                      message.role === 'user'
+                        ? 'bg-gradient-to-br from-lime-500 to-lime-600 text-white'
+                        : 'bg-slate-100 text-slate-900'
+                    }`}
+                  >
+                    <p className="text-sm font-light">{message.content}</p>
+                    <p
+                      className={`text-xs mt-1 ${
+                        message.role === 'user' ? 'text-lime-100' : 'text-slate-500'
+                      }`}
+                    >
+                      {new Date(message.created_at).toLocaleTimeString()}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="p-6 border-t border-slate-200">
+              <button className="w-full px-4 py-2 bg-gradient-to-r from-lime-500 to-lime-600 text-white rounded-lg hover:shadow-lg transition-all font-light flex items-center justify-center space-x-2">
+                <Download className="w-4 h-4" />
+                <span>Download Transcript</span>
               </button>
             </div>
           </div>

@@ -1,6 +1,15 @@
 import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { BarChart3, MessageSquare, Eye, TrendingUp, Users, Activity, ArrowUpRight, Sparkles } from 'lucide-react'
+import { 
+  BarChart3, 
+  MessageSquare, 
+  Eye, 
+  TrendingUp, 
+  Users, 
+  Activity, 
+  ArrowUpRight,
+  Sparkles
+} from 'lucide-react'
 import { apiClient } from '@/lib/api'
 import { OverviewAnalytics } from '@/types'
 
@@ -26,17 +35,17 @@ const AdminDashboard: React.FC = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="loading-spinner"></div>
+        <div className="w-8 h-8 border-2 border-lime-500 border-t-transparent rounded-full animate-spin"></div>
       </div>
     )
   }
 
   if (!analytics) {
     return (
-      <div className="text-center py-12">
-        <Activity className="mx-auto h-12 w-12 text-gray-300" />
-        <h3 className="mt-4 text-lg font-light text-gray-900">No analytics data available</h3>
-        <p className="mt-2 text-sm text-gray-400">Start creating agents to see your analytics.</p>
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center">
+        <Activity className="w-12 h-12 text-slate-300 mb-4" />
+        <h3 className="text-lg font-light text-slate-900 mb-2">No analytics data available</h3>
+        <p className="text-sm text-slate-500">Start creating agents to see your analytics.</p>
       </div>
     )
   }
@@ -48,7 +57,7 @@ const AdminDashboard: React.FC = () => {
       change: '+12%',
       trend: 'up',
       icon: Users,
-      gradient: 'from-lime-400 to-lime-600'
+      color: 'lime'
     },
     {
       name: 'Conversations',
@@ -56,7 +65,7 @@ const AdminDashboard: React.FC = () => {
       change: '+23%',
       trend: 'up',
       icon: MessageSquare,
-      gradient: 'from-emerald-400 to-emerald-600'
+      color: 'emerald'
     },
     {
       name: 'Active Now',
@@ -64,7 +73,7 @@ const AdminDashboard: React.FC = () => {
       change: 'Live',
       trend: 'neutral',
       icon: Activity,
-      gradient: 'from-cyan-400 to-cyan-600'
+      color: 'cyan'
     },
     {
       name: 'Total Messages',
@@ -72,14 +81,14 @@ const AdminDashboard: React.FC = () => {
       change: '+18%',
       trend: 'up',
       icon: BarChart3,
-      gradient: 'from-violet-400 to-violet-600'
+      color: 'violet'
     },
   ]
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       {/* Welcome Section */}
-      <div className="relative overflow-hidden bg-gradient-to-br from-lime-500 via-lime-600 to-emerald-600 rounded-2xl p-8 text-white">
+      <div className="relative overflow-hidden bg-gradient-to-br from-lime-500 to-lime-600 rounded-xl p-8 text-white">
         <div className="absolute top-0 right-0 -mt-4 -mr-4 w-64 h-64 bg-white/10 rounded-full blur-3xl"></div>
         <div className="absolute bottom-0 left-0 -mb-4 -ml-4 w-48 h-48 bg-white/10 rounded-full blur-3xl"></div>
         <div className="relative z-10">
@@ -95,26 +104,30 @@ const AdminDashboard: React.FC = () => {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {stats.map((stat) => {
           const Icon = stat.icon
           return (
-            <div key={stat.name} className="stat-card hover-lift">
+            <div 
+              key={stat.name} 
+              className="relative bg-white rounded-xl border border-slate-200 p-6 hover:shadow-lg transition-shadow duration-200"
+            >
+              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-lime-400 to-lime-600 rounded-t-xl"></div>
               <div className="flex items-start justify-between">
                 <div className="flex-1">
-                  <p className="text-sm font-light text-gray-500 mb-1">{stat.name}</p>
-                  <p className="text-3xl font-light text-gray-900 mb-2">{stat.value}</p>
+                  <p className="text-sm font-light text-slate-500 mb-1">{stat.name}</p>
+                  <p className="text-3xl font-light text-slate-900 mb-2">{stat.value}</p>
                   <div className="flex items-center space-x-1">
                     {stat.trend === 'up' && <ArrowUpRight className="w-3 h-3 text-lime-600" />}
                     <span className={`text-xs font-light ${
                       stat.trend === 'up' ? 'text-lime-600' : 
-                      stat.trend === 'neutral' ? 'text-gray-400' : 'text-red-600'
+                      stat.trend === 'neutral' ? 'text-slate-400' : 'text-red-600'
                     }`}>
                       {stat.change}
                     </span>
                   </div>
                 </div>
-                <div className={`p-3 rounded-xl bg-gradient-to-br ${stat.gradient}`}>
+                <div className="p-3 rounded-lg bg-gradient-to-br from-lime-400 to-lime-600">
                   <Icon className="w-5 h-5 text-white" />
                 </div>
               </div>
@@ -124,48 +137,52 @@ const AdminDashboard: React.FC = () => {
       </div>
 
       {/* Top Performing Agents */}
-      <div className="card-modern">
+      <div className="bg-white rounded-xl border border-slate-200 p-6">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h2 className="text-xl font-light text-gray-900">Top Performing Agents</h2>
-            <p className="text-sm text-gray-400 font-light mt-1">Agents with the most conversations</p>
+            <h2 className="text-xl font-light text-slate-900">Top Performing Agents</h2>
+            <p className="text-sm text-slate-500 font-light mt-1">Agents with the most conversations</p>
           </div>
-          <Link to="/analytics/performance" className="btn-secondary text-sm">
+          <Link 
+            to="/analytics/performance" 
+            className="px-4 py-2 text-sm font-light text-lime-600 hover:text-lime-700 border border-lime-200 rounded-lg hover:bg-lime-50 transition-colors"
+          >
             View All
           </Link>
         </div>
 
         {analytics.topPerformingAgents.length === 0 ? (
-          <div className="text-center py-12">
-            <Users className="mx-auto h-12 w-12 text-gray-300" />
-            <p className="mt-4 text-sm text-gray-400 font-light">No agents found</p>
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            <Users className="w-12 h-12 text-slate-300 mb-4" />
+            <p className="text-sm text-slate-500 font-light">No agents found</p>
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-3">
             {analytics.topPerformingAgents.map((agent, index) => (
-              <div key={agent.agentId} className="flex items-center space-x-4 p-4 rounded-xl bg-gray-50/50 hover:bg-gray-50 transition-colors">
+              <div 
+                key={agent.agentId} 
+                className="flex items-center space-x-4 p-4 rounded-lg bg-slate-50 hover:bg-slate-100 transition-colors"
+              >
                 <div className="flex-shrink-0">
-                  <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${
+                  <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${
                     index === 0 ? 'from-lime-400 to-lime-600' :
                     index === 1 ? 'from-emerald-400 to-emerald-600' :
                     'from-cyan-400 to-cyan-600'
                   } flex items-center justify-center`}>
-                    <span className="text-white font-light text-lg">#{index + 1}</span>
+                    <span className="text-white font-light text-sm">#{index + 1}</span>
                   </div>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-light text-gray-900 truncate">{agent.agentName}</p>
-                  <p className="text-xs text-gray-400 font-light">
+                  <p className="text-sm font-light text-slate-900 truncate">{agent.agentName}</p>
+                  <p className="text-xs text-slate-500 font-light">
                     {agent.conversationCount} conversations
                   </p>
                 </div>
-                <div className="flex-shrink-0">
-                  <div className="text-right">
-                    <p className="text-sm font-light text-gray-900">
-                      {Math.round(agent.averageDuration / 1000 / 60)}m
-                    </p>
-                    <p className="text-xs text-gray-400 font-light">avg duration</p>
-                  </div>
+                <div className="flex-shrink-0 text-right">
+                  <p className="text-sm font-light text-slate-900">
+                    {Math.round(agent.averageDuration / 1000 / 60)}m
+                  </p>
+                  <p className="text-xs text-slate-500 font-light">avg duration</p>
                 </div>
               </div>
             ))}
@@ -174,48 +191,48 @@ const AdminDashboard: React.FC = () => {
       </div>
 
       {/* Quick Actions */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Link
           to="/conversations"
-          className="card-modern hover-lift group"
+          className="group bg-white rounded-xl border border-slate-200 p-6 hover:shadow-lg transition-all duration-200"
         >
           <div className="flex items-center space-x-4">
-            <div className="p-3 rounded-xl bg-gradient-to-br from-lime-400 to-lime-600 group-hover:scale-110 transition-transform">
-              <Eye className="w-6 h-6 text-white" />
+            <div className="p-3 rounded-lg bg-gradient-to-br from-lime-400 to-lime-600 group-hover:scale-110 transition-transform">
+              <Eye className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h4 className="font-light text-gray-900">Monitor Conversations</h4>
-              <p className="text-sm text-gray-400 font-light mt-1">View live interactions</p>
+              <h4 className="font-light text-slate-900">Monitor Conversations</h4>
+              <p className="text-sm text-slate-500 font-light mt-1">View live interactions</p>
             </div>
           </div>
         </Link>
 
         <Link
           to="/analytics/performance"
-          className="card-modern hover-lift group"
+          className="group bg-white rounded-xl border border-slate-200 p-6 hover:shadow-lg transition-all duration-200"
         >
           <div className="flex items-center space-x-4">
-            <div className="p-3 rounded-xl bg-gradient-to-br from-emerald-400 to-emerald-600 group-hover:scale-110 transition-transform">
-              <TrendingUp className="w-6 h-6 text-white" />
+            <div className="p-3 rounded-lg bg-gradient-to-br from-emerald-400 to-emerald-600 group-hover:scale-110 transition-transform">
+              <TrendingUp className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h4 className="font-light text-gray-900">Performance Analytics</h4>
-              <p className="text-sm text-gray-400 font-light mt-1">Detailed metrics</p>
+              <h4 className="font-light text-slate-900">Performance Analytics</h4>
+              <p className="text-sm text-slate-500 font-light mt-1">Detailed metrics</p>
             </div>
           </div>
         </Link>
 
         <Link
           to="/agents"
-          className="card-modern hover-lift group"
+          className="group bg-white rounded-xl border border-slate-200 p-6 hover:shadow-lg transition-all duration-200"
         >
           <div className="flex items-center space-x-4">
-            <div className="p-3 rounded-xl bg-gradient-to-br from-cyan-400 to-cyan-600 group-hover:scale-110 transition-transform">
-              <Users className="w-6 h-6 text-white" />
+            <div className="p-3 rounded-lg bg-gradient-to-br from-cyan-400 to-cyan-600 group-hover:scale-110 transition-transform">
+              <Users className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h4 className="font-light text-gray-900">Manage Agents</h4>
-              <p className="text-sm text-gray-400 font-light mt-1">Configure AI agents</p>
+              <h4 className="font-light text-slate-900">Manage Agents</h4>
+              <p className="text-sm text-slate-500 font-light mt-1">Configure AI agents</p>
             </div>
           </div>
         </Link>
