@@ -32,6 +32,23 @@ body {
   z-index: 50;
   display: flex;
   flex-direction: column;
+  transition: width 0.3s ease;
+}
+
+.sidebar.collapsed {
+  width: 80px;
+}
+
+.mobile-overlay {
+  display: none;
+}
+
+.mobile-close {
+  display: none;
+}
+
+.mobile-menu-btn {
+  display: none;
 }
 
 .sidebar-logo {
@@ -155,10 +172,40 @@ body {
   text-overflow: ellipsis;
 }
 
+/* Sidebar Toggle */
+.sidebar-toggle {
+  position: absolute;
+  bottom: 20px;
+  right: -15px;
+  width: 30px;
+  height: 30px;
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #64748b;
+  transition: all 0.2s;
+  z-index: 51;
+}
+
+.sidebar-toggle:hover {
+  background: #f8fafc;
+  color: #84cc16;
+  border-color: #d9f99d;
+}
+
 /* Main Content */
 .main-content {
   margin-left: 260px;
   min-height: 100vh;
+  transition: margin-left 0.3s ease;
+}
+
+.main-content.sidebar-collapsed {
+  margin-left: 80px;
 }
 
 .top-bar {
@@ -173,6 +220,12 @@ body {
   align-items: center;
   justify-content: space-between;
   z-index: 30;
+}
+
+.top-bar-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
 }
 
 .page-title {
@@ -500,10 +553,58 @@ body {
 @media (max-width: 1024px) {
   .sidebar {
     transform: translateX(-100%);
+    width: 260px !important;
+  }
+  
+  .sidebar.mobile-open {
+    transform: translateX(0);
+  }
+  
+  .sidebar.collapsed {
+    transform: translateX(-100%);
+  }
+  
+  .mobile-overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 40;
+  }
+  
+  .mobile-close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    background: #f8fafc;
+    border: none;
+    border-radius: 8px;
+    color: #64748b;
+    cursor: pointer;
+    margin-left: auto;
+  }
+  
+  .mobile-menu-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    color: #64748b;
+    cursor: pointer;
+  }
+  
+  .sidebar-toggle {
+    display: none;
   }
   
   .main-content {
-    margin-left: 0;
+    margin-left: 0 !important;
   }
   
   .stats-grid {
