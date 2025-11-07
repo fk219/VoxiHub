@@ -26,6 +26,7 @@ export async function connectRedis() {
     console.log('Redis client connected successfully');
   } catch (error) {
     console.error('Failed to connect to Redis:', error);
-    throw error;
+    console.log('⚠️  Continuing without Redis - sessions and rate limiting will be disabled');
+    // Don't throw - allow server to start without Redis
   }
 }
