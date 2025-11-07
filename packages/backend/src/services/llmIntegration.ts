@@ -1,5 +1,7 @@
 import OpenAI from 'openai';
 import { FunctionRegistry, FunctionContext } from './functionRegistry';
+import { KnowledgeBaseSearchService } from './knowledgeBaseSearch';
+import { DatabaseService } from './database';
 import { logger } from '../utils/logger';
 
 export interface LLMMessage {
@@ -36,8 +38,9 @@ export interface LLMResponse {
 export class LLMIntegrationService {
   private openai: OpenAI;
   private functionRegistry: FunctionRegistry;
+  private kbSearchService: KnowledgeBaseSearchService | null = null;
 
-  constructor(functionRegistry: FunctionRegistry) {
+  constructor(functionRegistry: FunctionRegistry, dbService?: DatabaseService) {
     this.functionRegistry = functionRegistry;
     
     const apiKey = process.env.OPENAI_API_KEY;
@@ -46,17 +49,56 @@ export class LLMIntegrationService {
     }
 
     this.openai = new OpenAI({ apiKey });
+    
+    // Initialize KB search if database service provided
+    if (dbService) {
+      this.kbSearchService = new KnowledgeBaseSearchService(dbService);
+    }
   }
 
   /**
-   * Generate LLM response with function calling support
+   * Generate LLM response with function calling and knowledge base support
    */
   async generateResponse(
     messages: LLMMessage[],
     config: LLMConfig,
-    context: FunctionContext
+    context: FunctionContext,
+    knowledgeBaseIds?: string[]
   ): Promise<LLMResponse> {
     try {
+      // Search knowledge bases if provided
+      if (knowledgeBaseIds && knowledgeBaseIds.length > 0 && this.kbSearchService) {
+        const lastUserMessage = messages.filter(m => m.role === 'user').pop();
+        
+        if (lastUserMessage) {
+          const kbResults = await this.kbSearchService.searchKnowledgeBases(
+            knowledgeBaseIds,
+            lastUserMessage.content,
+            5
+          );
+
+          if (kbResults.length > 0) {
+            const kbContext = this.kbSearchService.formatResultsForContext(kbResults);
+            
+            // Add knowledge base context to system message
+            const systemMessageIndex = messages.findIndex(m => m.role === 'system');
+            if (systemMessageIndex >= 0) {
+              messages[systemMessageIndex].content += `\n\n${kbContext}`;
+            } else {
+              messages.unshift({
+                role: 'system',
+                content: kbContext
+              });
+            }
+
+            logger.info('Added knowledge base context', {
+              resultsCount: kbResults.length,
+              agentId: context.agentId
+            });
+          }
+        }
+      }
+
       // Get available functions for this agent
       const functions = config.functionsEnabled
         ? this.functionRegistry.getFunctionSchemaForLLM(context.agentId)
@@ -65,7 +107,8 @@ export class LLMIntegrationService {
       logger.info('Generating LLM response', {
         agentId: context.agentId,
         messageCount: messages.length,
-        functionsAvailable: functions.length
+        functionsAvailable: functions.length,
+        knowledgeBasesUsed: knowledgeBaseIds?.length || 0
       });
 
       // Prepare OpenAI request
