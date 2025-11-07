@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { readFileSync, readdirSync } from 'fs';
 import { join } from 'path';
-import { logger } from '../index';
+import { logger } from '../utils/logger';
 
 export class DatabaseMigrator {
   private supabase;

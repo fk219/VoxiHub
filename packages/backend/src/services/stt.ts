@@ -1,6 +1,6 @@
 import OpenAI from 'openai';
 import { Readable } from 'stream';
-import { logger } from '../index';
+import { logger } from '../utils/logger';
 import Joi from 'joi';
 
 export interface STTResult {

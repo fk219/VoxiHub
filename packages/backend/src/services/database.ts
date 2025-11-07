@@ -1,5 +1,5 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { logger } from '../index';
+import { logger } from '../utils/logger';
 import {
   Agent,
   User,

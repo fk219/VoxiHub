@@ -2,7 +2,8 @@ import { Router, Request, Response } from 'express';
 import { ConversationService } from '../services/conversation';
 import { DatabaseService } from '../services/database';
 import { authenticateToken, optionalAuth } from '../middleware/auth';
-import { redis, logger } from '../index';
+import { redis } from '../config/redis';
+import { logger } from '../utils/logger';
 
 const router = Router();
 const dbService = new DatabaseService();

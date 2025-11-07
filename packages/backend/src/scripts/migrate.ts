@@ -2,7 +2,7 @@
 
 import dotenv from 'dotenv';
 import { DatabaseMigrator } from '../database/migrator';
-import { logger } from '../index';
+import { logger } from '../utils/logger';
 
 // Load environment variables
 dotenv.config();

@@ -4,7 +4,6 @@ import './config/env';
 import express from 'express';
 import cors from 'cors';
 import { createClient } from '@supabase/supabase-js';
-import { createClient as createRedisClient } from 'redis';
 import { DatabaseService } from './services/database';
 import { ConversationService } from './services/conversation';
 import { STTService } from './services/stt';
@@ -20,6 +19,7 @@ import { securityHeaders, sanitizeInput, securityLogger, corsOptions } from './m
 import { createAPIRateLimit, createAuthRateLimit } from './middleware/rateLimiting';
 import { logger } from './utils/logger';
 import { config } from './config/env';
+import { redis, connectRedis } from './config/redis';
 
 // Initialize Express app
 const app = express();
@@ -38,11 +38,6 @@ const supabase = createClient(
   process.env.SUPABASE_URL || '',
   process.env.SUPABASE_ANON_KEY || ''
 );
-
-// Initialize Redis client
-const redis = createRedisClient({
-  url: process.env.REDIS_URL || 'redis://localhost:6379'
-});
 
 // Initialize services
 const dbService = new DatabaseService();
@@ -69,18 +64,6 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Import routes
-import agentRoutes from './routes/agents';
-import conversationRoutes from './routes/conversations';
-import sttRoutes from './routes/stt';
-import ttsRoutes from './routes/tts';
-import sipRoutes, { initializeSipRoutes } from './routes/sip';
-import adminRoutes from './routes/admin';
-import privacyRoutes from './routes/privacy';
-import functionRoutes from './routes/api/v1/functions';
-import knowledgeBaseRoutes from './routes/knowledgeBase';
-import deploymentRoutes from './routes/deployments';
-
 // API routes
 app.get('/api', (req, res) => {
   res.json({ 
@@ -89,9 +72,6 @@ app.get('/api', (req, res) => {
   });
 });
 
-// Initialize SIP routes with services
-initializeSipRoutes(sipService, outboundCallService, dbService);
-
 // Apply rate limiting to API routes
 app.use('/api', apiRateLimit.middleware());
 
@@ -99,17 +79,7 @@ app.use('/api', apiRateLimit.middleware());
 app.set('functionRegistry', functionRegistry);
 app.set('dbService', dbService);
 
-// Mount routes
-app.use('/api/agents', agentRoutes);
-app.use('/api/conversations', conversationRoutes);
-app.use('/api/stt', sttRoutes);
-app.use('/api/tts', ttsRoutes);
-app.use('/api/sip', sipRoutes);
-app.use('/api/admin', adminRoutes);
-app.use('/api/privacy', privacyRoutes);
-app.use('/api/v1/functions', functionRoutes);
-app.use('/api/knowledge-bases', knowledgeBaseRoutes);
-app.use('/api/deployments', deploymentRoutes);
+// Routes will be mounted after Redis connection in startServer()
 
 // Authentication routes with rate limiting
 app.use('/api/auth', authRateLimit.middleware());
@@ -215,7 +185,7 @@ app.use('*', (req, res) => {
 async function startServer() {
   try {
     // Connect to Redis
-    await redis.connect();
+    await connectRedis();
     logger.info('Connected to Redis');
 
     // Test Supabase connection
@@ -235,6 +205,16 @@ async function startServer() {
       logger.warn('SIP services initialization failed:', error);
       // Continue without SIP functionality
     }
+
+    // Setup routes (dynamic import after Redis is connected)
+    const { setupRoutes } = await import('./routes/index');
+    await setupRoutes(app, {
+      dbService,
+      auditService,
+      functionRegistry,
+      sipService,
+      outboundCallService
+    });
 
     // Start cleanup tasks
     startCleanupTasks();
@@ -301,4 +281,4 @@ function startCleanupTasks() {
 
 startServer();
 
-export { app, supabase, redis, logger, dbService, auditService, sessionService, sipService, sipManager, outboundCallService };
+export { app, supabase, dbService, auditService, sessionService, sipService, sipManager, outboundCallService };

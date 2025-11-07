@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { TTSService, createTTSService } from '../services/tts';
 import { optionalAuth } from '../middleware/auth';
-import { logger } from '../index';
+import { logger } from '../utils/logger';
 import Joi from 'joi';
 
 const router = Router();

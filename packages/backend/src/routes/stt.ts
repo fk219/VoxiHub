@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import multer from 'multer';
 import { STTService, createSTTService } from '../services/stt';
 import { optionalAuth } from '../middleware/auth';
-import { logger } from '../index';
+import { logger } from '../utils/logger';
 
 const router = Router();
 const sttService = createSTTService();
