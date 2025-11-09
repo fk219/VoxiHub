@@ -26,6 +26,33 @@ export interface Agent {
   response_time: number;
   max_conversation_length: number;
   escalation_triggers: string[];
+  knowledge_base_ids?: string[];
+  
+  // LLM Configuration
+  llm_provider?: string;
+  llm_model?: string;
+  llm_temperature?: number;
+  llm_max_tokens?: number;
+  
+  // TTS Configuration
+  tts_provider?: string;
+  tts_voice?: string;
+  tts_speed?: number;
+  
+  // STT Configuration
+  stt_provider?: string;
+  stt_language?: string;
+  
+  // Advanced Features
+  functions_enabled?: boolean;
+  interruption_sensitivity?: number;
+  max_call_duration?: number;
+  webhook_url?: string;
+  
+  // Status
+  status?: string;
+  published_at?: string;
+  
   created_at: string;
   updated_at: string;
 }
@@ -136,6 +163,32 @@ export interface CreateAgentRequest {
   response_time?: number;
   max_conversation_length?: number;
   escalation_triggers?: string[];
+  knowledge_base_ids?: string[];
+  
+  // LLM Configuration
+  llm_provider?: string;
+  llm_model?: string;
+  llm_temperature?: number;
+  llm_max_tokens?: number;
+  
+  // TTS Configuration
+  tts_provider?: string;
+  tts_voice?: string;
+  tts_speed?: number;
+  
+  // STT Configuration
+  stt_provider?: string;
+  stt_language?: string;
+  
+  // Advanced Features
+  functions_enabled?: boolean;
+  interruption_sensitivity?: number;
+  max_call_duration?: number;
+  webhook_url?: string;
+  
+  // Status
+  status?: string;
+  published_at?: string | null;
 }
 
 export interface UpdateAgentRequest extends Partial<CreateAgentRequest> {}

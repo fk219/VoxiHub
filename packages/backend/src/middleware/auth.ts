@@ -30,6 +30,18 @@ export interface AuthenticatedRequest extends Request {
 export const authenticateToken = (auditService?: AuditService) => {
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
+      // Development mode bypass
+      if (process.env.NODE_ENV === 'development' && process.env.BYPASS_AUTH === 'true') {
+        req.user = {
+          id: '00000000-0000-0000-0000-000000000000', // Valid UUID for dev mode
+          email: 'dev@example.com',
+          role: 'admin'
+        };
+        logger.info('Development mode: Authentication bypassed');
+        next();
+        return;
+      }
+
       const authHeader = req.headers.authorization;
       const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
 

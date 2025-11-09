@@ -51,8 +51,11 @@ export class DatabaseService {
   }
 
   // User operations
-  async createUser(userData: Partial<User>): Promise<User> {
-    const { data, error } = await this.supabase
+  async createUser(userData: Partial<User>, useServiceClient: boolean = false): Promise<User> {
+    // Use service client to bypass RLS when needed (e.g., dev user creation)
+    const client = useServiceClient ? this.serviceSupabase : this.supabase;
+    
+    const { data, error } = await client
       .from('users')
       .insert(userData)
       .select()
@@ -83,8 +86,9 @@ export class DatabaseService {
   }
 
   // Agent operations
-  async createAgent(agentData: CreateAgentRequest & { user_id: string }): Promise<Agent> {
-    const { data, error } = await this.supabase
+  async createAgent(agentData: CreateAgentRequest & { user_id?: string | null }): Promise<Agent> {
+    // Always use service client to bypass RLS
+    const { data, error} = await this.serviceSupabase
       .from('agents')
       .insert(agentData)
       .select()
@@ -98,13 +102,18 @@ export class DatabaseService {
     return data;
   }
 
-  async getAgentById(agentId: string, userId: string): Promise<Agent | null> {
-    const { data, error } = await this.supabase
+  async getAgentById(agentId: string, userId?: string): Promise<Agent | null> {
+    let query = this.serviceSupabase
       .from('agents')
       .select('*')
-      .eq('id', agentId)
-      .eq('user_id', userId)
-      .single();
+      .eq('id', agentId);
+    
+    // Only filter by user if provided
+    if (userId) {
+      query = query.eq('user_id', userId);
+    }
+
+    const { data, error } = await query.single();
 
     if (error) {
       if (error.code === 'PGRST116') return null;
@@ -113,6 +122,21 @@ export class DatabaseService {
     }
 
     return data;
+  }
+
+  async getAllAgents(limit: number = 50, offset: number = 0): Promise<Agent[]> {
+    const { data, error } = await this.serviceSupabase
+      .from('agents')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
+
+    if (error) {
+      logger.error('Failed to get agents:', error);
+      throw new Error(`Failed to get agents: ${error.message}`);
+    }
+
+    return data || [];
   }
 
   async getAgentsByUserId(userId: string, limit: number = 50, offset: number = 0): Promise<Agent[]> {
@@ -132,7 +156,10 @@ export class DatabaseService {
   }
 
   async updateAgent(agentId: string, updates: Partial<Agent>): Promise<Agent> {
-    const { data, error } = await this.supabase
+    logger.info('Updating agent:', { agentId, updates });
+    
+    // Use service client to bypass RLS
+    const { data, error} = await this.serviceSupabase
       .from('agents')
       .update(updates)
       .eq('id', agentId)
@@ -140,15 +167,25 @@ export class DatabaseService {
       .single();
 
     if (error) {
-      logger.error('Failed to update agent:', error);
-      throw new Error(`Failed to update agent: ${error.message}`);
+      logger.error('Failed to update agent:', { 
+        error, 
+        agentId, 
+        updates,
+        errorCode: error.code,
+        errorDetails: error.details,
+        errorHint: error.hint,
+        errorMessage: error.message
+      });
+      throw new Error(`Failed to update agent: ${error.message} (${error.code})`);
     }
 
+    logger.info('Agent updated successfully:', { agentId, data });
     return data;
   }
 
   async deleteAgent(agentId: string): Promise<void> {
-    const { error } = await this.supabase
+    // Use service client to bypass RLS
+    const { error } = await this.serviceSupabase
       .from('agents')
       .delete()
       .eq('id', agentId);
@@ -1021,12 +1058,33 @@ export class DatabaseService {
   // Health check
   async healthCheck(): Promise<boolean> {
     try {
-      const { error } = await this.supabase
-        .from('users')
-        .select('count')
-        .limit(1);
+      // Use a simple query with timeout using AbortController
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
 
-      return !error;
+      try {
+        const { error } = await this.supabase
+          .from('users')
+          .select('id')
+          .limit(1)
+          .abortSignal(controller.signal);
+
+        clearTimeout(timeoutId);
+        
+        if (error) {
+          logger.warn('Database health check query error:', error.message);
+          return false;
+        }
+        
+        return true;
+      } catch (err: any) {
+        clearTimeout(timeoutId);
+        if (err.name === 'AbortError') {
+          logger.error('Database health check timed out');
+          return false;
+        }
+        throw err;
+      }
     } catch (error) {
       logger.error('Database health check failed:', error);
       return false;

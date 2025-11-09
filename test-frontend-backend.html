@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Frontend-Backend Connection Test</title>
+</head>
+<body>
+    <h1>Testing Frontend to Backend Connection</h1>
+    <div id="results"></div>
+    
+    <script>
+        const API_URL = 'http://localhost:3001';
+        const results = document.getElementById('results');
+        
+        async function testConnection() {
+            results.innerHTML = '<p>Testing connections...</p>';
+            
+            // Test 1: Backend health
+            try {
+                const healthRes = await fetch(`${API_URL}/health`);
+                const healthData = await healthRes.json();
+                results.innerHTML += `<p>✅ Backend Health: ${healthData.status}</p>`;
+            } catch (err) {
+                results.innerHTML += `<p>❌ Backend Health: ${err.message}</p>`;
+            }
+            
+            // Test 2: Database health
+            try {
+                const dbRes = await fetch(`${API_URL}/api/health/database`);
+                const dbData = await dbRes.json();
+                results.innerHTML += `<p>✅ Database Health: ${dbData.status}</p>`;
+            } catch (err) {
+                results.innerHTML += `<p>❌ Database Health: ${err.message}</p>`;
+            }
+            
+            // Test 3: API endpoint
+            try {
+                const apiRes = await fetch(`${API_URL}/api`);
+                const apiData = await apiRes.json();
+                results.innerHTML += `<p>✅ API: ${apiData.message}</p>`;
+            } catch (err) {
+                results.innerHTML += `<p>❌ API: ${err.message}</p>`;
+            }
+        }
+        
+        testConnection();
+    </script>
+</body>
+</html>

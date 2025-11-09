@@ -14,21 +14,42 @@ class ApiClient {
     options: RequestInit = {}
   ): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`
+    
+    // Add timeout to prevent hanging
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 30000) // 30 second timeout for file uploads
+    
+    // Don't set Content-Type for FormData (browser will set it with boundary)
+    const headers: HeadersInit = options.body instanceof FormData 
+      ? { ...options.headers }
+      : {
+          'Content-Type': 'application/json',
+          ...options.headers,
+        };
+    
     const config: RequestInit = {
-      headers: {
-        'Content-Type': 'application/json',
-        ...options.headers,
-      },
+      headers,
+      signal: controller.signal,
       ...options,
     }
 
-    const response = await fetch(url, config)
+    try {
+      const response = await fetch(url, config)
+      clearTimeout(timeoutId)
 
-    if (!response.ok) {
-      throw new Error(`API Error: ${response.status} ${response.statusText}`)
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => response.statusText)
+        throw new Error(`API Error: ${response.status} - ${errorText}`)
+      }
+
+      return response.json()
+    } catch (error: any) {
+      clearTimeout(timeoutId)
+      if (error.name === 'AbortError') {
+        throw new Error('Request timeout - please check if the backend server is running')
+      }
+      throw error
     }
-
-    return response.json()
   }
 
   // Generic HTTP methods
@@ -36,10 +57,15 @@ class ApiClient {
     return this.request<T>(endpoint, { method: 'GET' })
   }
 
-  async post<T>(endpoint: string, data?: any): Promise<T> {
+  async post<T>(endpoint: string, data?: any, options?: RequestInit): Promise<T> {
+    // Check if data is FormData (for file uploads)
+    const isFormData = data instanceof FormData;
+    
     return this.request<T>(endpoint, {
       method: 'POST',
-      body: data ? JSON.stringify(data) : undefined,
+      body: isFormData ? data : (data ? JSON.stringify(data) : undefined),
+      headers: isFormData ? {} : { 'Content-Type': 'application/json' },
+      ...options,
     })
   }
 

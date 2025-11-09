@@ -9,8 +9,7 @@ import { logger } from '../utils/logger';
 
 const router = Router();
 
-// Apply authentication
-router.use(authenticateToken);
+// No authentication required for MVP
 
 interface AgentConfig {
   name: string;
@@ -18,10 +17,14 @@ interface AgentConfig {
   personality_tone?: string;
   personality_instructions?: string;
   language?: string;
+  stt_language?: string;
   voice_id?: string;
+  tts_voice?: string;
   voice_model?: string;
   voice_speed?: number;
+  tts_speed?: number;
   voice_temperature?: number;
+  llm_provider?: string;
   llm_model?: string;
   llm_temperature?: number;
   llm_max_tokens?: number;
@@ -41,10 +44,10 @@ interface AgentConfig {
  */
 router.get('/', async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user?.id;
     const dbService: DatabaseService = (req.app as any).get('dbService');
 
-    const agents = await dbService.getAgentsByUserId(userId);
+    // Get all agents (no user filter)
+    const agents = await dbService.getAllAgents();
 
     res.json(agents);
   } catch (error) {
@@ -59,18 +62,12 @@ router.get('/', async (req: Request, res: Response) => {
 router.get('/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const userId = (req as any).user?.id;
     const dbService: DatabaseService = (req.app as any).get('dbService');
 
     const agent = await dbService.getAgentById(id);
 
     if (!agent) {
       return res.status(404).json({ error: 'Agent not found' });
-    }
-
-    // Check ownership
-    if (agent.user_id !== userId) {
-      return res.status(403).json({ error: 'Access denied' });
     }
 
     res.json(agent);
@@ -85,7 +82,6 @@ router.get('/:id', async (req: Request, res: Response) => {
  */
 router.post('/', async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user?.id;
     const config: AgentConfig = req.body;
     const dbService: DatabaseService = (req.app as any).get('dbService');
 
@@ -94,40 +90,49 @@ router.post('/', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Agent name is required' });
     }
 
-    // Create agent in database
-    const agent = await dbService.createAgent({
-      user_id: userId,
+    // No authentication - use NULL for user_id (will be handled by database)
+    // Create agent in database with all provided fields
+    const agentData: any = {
+      user_id: null as any, // No user required
       name: config.name,
       description: config.description,
-      personality_tone: config.personality_tone,
+      personality_tone: config.personality_tone || 'professional',
+      personality_style: config.personality_instructions,
       personality_instructions: config.personality_instructions,
-      language: config.language || 'en-US',
-      voice_id: config.voice_id,
-      voice_model: config.voice_model || 'eleven_turbo_v2',
-      voice_speed: config.voice_speed || 1.0,
-      voice_temperature: config.voice_temperature || 0.7,
-      llm_model: config.llm_model || 'gpt-4',
+      response_time: config.response_delay || 1000,
+      max_conversation_length: config.max_call_duration ? Math.floor(config.max_call_duration / 60000) : 50,
+      escalation_triggers: config.end_call_phrases || ['goodbye', 'bye', 'thank you'],
+      
+      // LLM configuration
+      llm_provider: config.llm_provider || 'openai',
+      llm_model: config.llm_model || 'gpt-4-turbo-preview',
       llm_temperature: config.llm_temperature || 0.7,
       llm_max_tokens: config.llm_max_tokens || 1000,
-      functions_enabled: config.functions_enabled !== false,
+      
+      // TTS configuration
+      tts_provider: config.tts_provider || 'groq',
+      tts_voice: config.tts_voice || config.voice_id || 'Fritz-PlayAI',
+      tts_speed: config.tts_speed || config.voice_speed || 1.0,
+      
+      // STT configuration
+      stt_provider: config.stt_provider || 'groq',
+      stt_language: config.stt_language || config.language || 'en',
+      
+      // Advanced features
+      functions_enabled: config.functions_enabled !== undefined ? config.functions_enabled : true,
       knowledge_base_ids: config.knowledge_base_ids || [],
-      webhook_url: config.webhook_url,
-      stt_provider: config.stt_provider || 'openai',
-      tts_provider: config.tts_provider || 'elevenlabs',
       interruption_sensitivity: config.interruption_sensitivity || 0.5,
-      response_delay: config.response_delay || 0,
-      end_call_phrases: config.end_call_phrases || ['goodbye', 'bye', 'thank you'],
-      max_call_duration: config.max_call_duration || 3600000, // 1 hour
-      status: 'draft',
-      created_at: new Date(),
-      updated_at: new Date()
-    });
+      webhook_url: config.webhook_url || ''
+    };
+
+    const agent = await dbService.createAgent(agentData);
 
     logger.info('Agent created:', { agentId: agent.id, name: agent.name });
 
     res.status(201).json(agent);
   } catch (error) {
     logger.error('Failed to create agent:', error);
+    console.error('Create agent error details:', error);
     res.status(500).json({ error: 'Failed to create agent' });
   }
 });
@@ -138,30 +143,61 @@ router.post('/', async (req: Request, res: Response) => {
 router.put('/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const userId = (req as any).user?.id;
-    const updates: Partial<AgentConfig> = req.body;
+    const config: Partial<AgentConfig> = req.body;
     const dbService: DatabaseService = (req.app as any).get('dbService');
 
-    // Check ownership
+    // Check if agent exists
     const agent = await dbService.getAgentById(id);
     if (!agent) {
       return res.status(404).json({ error: 'Agent not found' });
     }
-    if (agent.user_id !== userId) {
-      return res.status(403).json({ error: 'Access denied' });
+
+    // Map frontend fields to database schema fields
+    const updateData: any = {
+      updated_at: new Date().toISOString()
+    };
+
+    // Only include fields that are provided and exist in schema
+    if (config.name !== undefined) updateData.name = config.name;
+    if (config.description !== undefined) updateData.description = config.description;
+    if (config.personality_tone !== undefined) updateData.personality_tone = config.personality_tone;
+    if (config.personality_instructions !== undefined) {
+      updateData.personality_style = config.personality_instructions;
+      updateData.personality_instructions = config.personality_instructions;
     }
+    if (config.response_delay !== undefined) updateData.response_time = config.response_delay;
+    if (config.max_call_duration !== undefined) {
+      updateData.max_conversation_length = Math.floor(config.max_call_duration / 60000);
+    }
+    if (config.end_call_phrases !== undefined) updateData.escalation_triggers = config.end_call_phrases;
+    
+    // Store LLM, TTS, STT, and other config in metadata or separate fields if they exist
+    if (config.llm_provider !== undefined) updateData.llm_provider = config.llm_provider;
+    if (config.llm_model !== undefined) updateData.llm_model = config.llm_model;
+    if (config.llm_temperature !== undefined) updateData.llm_temperature = config.llm_temperature;
+    if (config.llm_max_tokens !== undefined) updateData.llm_max_tokens = config.llm_max_tokens;
+    if (config.tts_provider !== undefined) updateData.tts_provider = config.tts_provider;
+    if (config.tts_voice !== undefined) updateData.tts_voice = config.tts_voice;
+    if (config.voice_id !== undefined) updateData.tts_voice = config.voice_id; // Support both field names
+    if (config.tts_speed !== undefined) updateData.tts_speed = config.tts_speed;
+    if (config.voice_speed !== undefined) updateData.tts_speed = config.voice_speed; // Support both field names
+    if (config.stt_provider !== undefined) updateData.stt_provider = config.stt_provider;
+    if (config.stt_language !== undefined) updateData.stt_language = config.stt_language;
+    if (config.language !== undefined) updateData.stt_language = config.language; // Support both field names
+    if (config.functions_enabled !== undefined) updateData.functions_enabled = config.functions_enabled;
+    if (config.knowledge_base_ids !== undefined) updateData.knowledge_base_ids = config.knowledge_base_ids;
+    if (config.interruption_sensitivity !== undefined) updateData.interruption_sensitivity = config.interruption_sensitivity;
+    if (config.webhook_url !== undefined) updateData.webhook_url = config.webhook_url;
 
     // Update agent
-    const updatedAgent = await dbService.updateAgent(id, {
-      ...updates,
-      updated_at: new Date()
-    });
+    const updatedAgent = await dbService.updateAgent(id, updateData);
 
     logger.info('Agent updated:', { agentId: id });
 
     res.json(updatedAgent);
   } catch (error) {
     logger.error('Failed to update agent:', error);
+    console.error('Update agent error details:', error);
     res.status(500).json({ error: 'Failed to update agent' });
   }
 });
@@ -172,16 +208,12 @@ router.put('/:id', async (req: Request, res: Response) => {
 router.delete('/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const userId = (req as any).user?.id;
     const dbService: DatabaseService = (req.app as any).get('dbService');
 
-    // Check ownership
+    // Check if agent exists
     const agent = await dbService.getAgentById(id);
     if (!agent) {
       return res.status(404).json({ error: 'Agent not found' });
-    }
-    if (agent.user_id !== userId) {
-      return res.status(403).json({ error: 'Access denied' });
     }
 
     await dbService.deleteAgent(id);
@@ -201,31 +233,19 @@ router.delete('/:id', async (req: Request, res: Response) => {
 router.post('/:id/publish', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const userId = (req as any).user?.id;
     const dbService: DatabaseService = (req.app as any).get('dbService');
 
-    // Check ownership
+    // Check if agent exists
     const agent = await dbService.getAgentById(id);
     if (!agent) {
       return res.status(404).json({ error: 'Agent not found' });
-    }
-    if (agent.user_id !== userId) {
-      return res.status(403).json({ error: 'Access denied' });
-    }
-
-    // Validate agent configuration
-    if (!agent.voice_id) {
-      return res.status(400).json({ error: 'Voice configuration required' });
-    }
-    if (!agent.llm_model) {
-      return res.status(400).json({ error: 'LLM configuration required' });
     }
 
     // Update status to published
     const updatedAgent = await dbService.updateAgent(id, {
       status: 'published',
-      published_at: new Date(),
-      updated_at: new Date()
+      published_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
     });
 
     logger.info('Agent published:', { agentId: id });
@@ -243,22 +263,18 @@ router.post('/:id/publish', async (req: Request, res: Response) => {
 router.post('/:id/unpublish', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const userId = (req as any).user?.id;
     const dbService: DatabaseService = (req.app as any).get('dbService');
 
-    // Check ownership
+    // Check if agent exists
     const agent = await dbService.getAgentById(id);
     if (!agent) {
       return res.status(404).json({ error: 'Agent not found' });
-    }
-    if (agent.user_id !== userId) {
-      return res.status(403).json({ error: 'Access denied' });
     }
 
     // Update status to draft
     const updatedAgent = await dbService.updateAgent(id, {
       status: 'draft',
-      updated_at: new Date()
+      updated_at: new Date().toISOString()
     });
 
     logger.info('Agent unpublished:', { agentId: id });
@@ -277,18 +293,14 @@ router.post('/:id/test', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { message } = req.body;
-    const userId = (req as any).user?.id;
     
     const dbService: DatabaseService = (req.app as any).get('dbService');
     const functionRegistry: FunctionRegistry = (req.app as any).get('functionRegistry');
 
-    // Check ownership
+    // Check if agent exists
     const agent = await dbService.getAgentById(id);
     if (!agent) {
       return res.status(404).json({ error: 'Agent not found' });
-    }
-    if (agent.user_id !== userId) {
-      return res.status(403).json({ error: 'Access denied' });
     }
 
     if (!message) {
@@ -320,7 +332,7 @@ router.post('/:id/test', async (req: Request, res: Response) => {
       {
         conversationId,
         agentId: id,
-        userId
+        userId: 'test-user'
       }
     );
 
@@ -348,27 +360,21 @@ router.post('/:id/test', async (req: Request, res: Response) => {
 router.post('/:id/duplicate', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const userId = (req as any).user?.id;
     const dbService: DatabaseService = (req.app as any).get('dbService');
 
-    // Check ownership
+    // Check if agent exists
     const agent = await dbService.getAgentById(id);
     if (!agent) {
       return res.status(404).json({ error: 'Agent not found' });
     }
-    if (agent.user_id !== userId) {
-      return res.status(403).json({ error: 'Access denied' });
-    }
 
     // Create duplicate
+    const { id: _id, created_at: _created, updated_at: _updated, ...agentData } = agent;
     const duplicate = await dbService.createAgent({
-      ...agent,
-      id: undefined,
+      ...agentData,
       name: `${agent.name} (Copy)`,
       status: 'draft',
-      published_at: null,
-      created_at: new Date(),
-      updated_at: new Date()
+      published_at: null
     });
 
     logger.info('Agent duplicated:', { originalId: id, duplicateId: duplicate.id });

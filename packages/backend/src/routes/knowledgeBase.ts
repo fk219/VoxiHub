@@ -1,45 +1,79 @@
 import { Router, Request, Response } from 'express';
-import { DatabaseService } from '../services/database';
-import { authenticateToken } from '../middleware/auth';
+import { documentProcessor } from '../services/documentProcessor';
+import { VectorStoreService } from '../services/vectorStore';
 import { logger } from '../utils/logger';
 import multer from 'multer';
-import path from 'path';
+import * as path from 'path';
+import * as fs from 'fs';
+import { supabase } from '..';
+
+// Initialize vector store service
+const vectorStore = new VectorStoreService();
 
 const router = Router();
-const upload = multer({ dest: 'uploads/' });
 
-// Apply authentication
-router.use(authenticateToken);
-
-interface KnowledgeBase {
-  id: string;
-  organization_id: string;
-  name: string;
-  description?: string;
-  type: 'document' | 'website' | 'manual';
-  status: 'processing' | 'ready' | 'error';
-  document_count?: number;
-  created_at: Date;
-  updated_at: Date;
+// Configure multer for file uploads
+const uploadDir = path.join(__dirname, '../../uploads/knowledge-bases');
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
 }
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const upload = multer({
+  storage,
+  limits: {
+    fileSize: 10 * 1024 * 1024 // 10MB limit
+  },
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = ['application/pdf', 'text/plain', 'text/markdown',
+      'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+    if (allowedTypes.includes(file.mimetype) || file.originalname.match(/\.(txt|md|pdf|doc|docx)$/)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Invalid file type. Only PDF, TXT, MD, DOC, DOCX are allowed.'));
+    }
+  }
+});
 
 /**
  * Get all knowledge bases
  */
 router.get('/', async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user?.id;
-    const dbService: DatabaseService = (req.app as any).get('dbService');
+    // Get all knowledge bases from database
+    const { data: kbs, error } = await supabase
+      .from('knowledge_bases')
+      .select('*')
+      .order('created_at', { ascending: false });
 
-    // Get user's organization
-    const user = await dbService.getUserById(userId);
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
+    if (error) {
+      logger.error('Failed to fetch knowledge bases:', error);
+      return res.status(500).json({ error: 'Failed to fetch knowledge bases' });
     }
 
-    const knowledgeBases = await dbService.getKnowledgeBasesByOrganization(user.organization_id);
+    // Get document counts for each KB
+    const kbsWithCounts = await Promise.all((kbs || []).map(async (kb) => {
+      const { count } = await supabase
+        .from('kb_documents')
+        .select('*', { count: 'exact', head: true })
+        .eq('knowledge_base_id', kb.id);
+      
+      return {
+        ...kb,
+        document_count: count || 0
+      };
+    }));
 
-    res.json(knowledgeBases);
+    res.json(kbsWithCounts);
   } catch (error) {
     logger.error('Failed to get knowledge bases:', error);
     res.status(500).json({ error: 'Failed to get knowledge bases' });
@@ -52,22 +86,33 @@ router.get('/', async (req: Request, res: Response) => {
 router.get('/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const userId = (req as any).user?.id;
-    const dbService: DatabaseService = (req.app as any).get('dbService');
 
-    const kb = await dbService.getKnowledgeBaseById(id);
+    // Get KB from database
+    const { data: kb, error: kbError } = await supabase
+      .from('knowledge_bases')
+      .select('*')
+      .eq('id', id)
+      .single();
 
-    if (!kb) {
+    if (kbError || !kb) {
       return res.status(404).json({ error: 'Knowledge base not found' });
     }
 
-    // Check ownership
-    const user = await dbService.getUserById(userId);
-    if (kb.organization_id !== user.organization_id) {
-      return res.status(403).json({ error: 'Access denied' });
+    // Get documents for this KB
+    const { data: docs, error: docsError } = await supabase
+      .from('kb_documents')
+      .select('*')
+      .eq('knowledge_base_id', id)
+      .order('created_at', { ascending: false });
+
+    if (docsError) {
+      logger.error('Failed to fetch documents:', docsError);
     }
 
-    res.json(kb);
+    res.json({
+      ...kb,
+      documents: docs || []
+    });
   } catch (error) {
     logger.error('Failed to get knowledge base:', error);
     res.status(500).json({ error: 'Failed to get knowledge base' });
@@ -75,35 +120,33 @@ router.get('/:id', async (req: Request, res: Response) => {
 });
 
 /**
- * Create knowledge base
+ * Create new knowledge base
  */
 router.post('/', async (req: Request, res: Response) => {
   try {
-    const { name, description, type = 'manual' } = req.body;
-    const userId = (req as any).user?.id;
-    const dbService: DatabaseService = (req.app as any).get('dbService');
+    const { name, description, type } = req.body;
 
     if (!name) {
       return res.status(400).json({ error: 'Name is required' });
     }
 
-    const user = await dbService.getUserById(userId);
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
+    // Create KB in database
+    const { data: kb, error } = await supabase
+      .from('knowledge_bases')
+      .insert({
+        name,
+        description: description || '',
+        type: type || 'general'
+      })
+      .select()
+      .single();
+
+    if (error) {
+      logger.error('Failed to create knowledge base:', error);
+      return res.status(500).json({ error: 'Failed to create knowledge base' });
     }
 
-    const kb = await dbService.createKnowledgeBase({
-      organization_id: user.organization_id,
-      name,
-      description,
-      type,
-      status: 'ready',
-      created_at: new Date(),
-      updated_at: new Date()
-    });
-
-    logger.info('Knowledge base created:', { kbId: kb.id, name });
-
+    logger.info('Knowledge base created:', { id: kb.id, name: kb.name });
     res.status(201).json(kb);
   } catch (error) {
     logger.error('Failed to create knowledge base:', error);
@@ -117,30 +160,40 @@ router.post('/', async (req: Request, res: Response) => {
 router.put('/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { name, description } = req.body;
-    const userId = (req as any).user?.id;
-    const dbService: DatabaseService = (req.app as any).get('dbService');
+    const { name, description, type } = req.body;
 
-    const kb = await dbService.getKnowledgeBaseById(id);
-    if (!kb) {
+    // Check if KB exists
+    const { data: existing, error: checkError } = await supabase
+      .from('knowledge_bases')
+      .select('id')
+      .eq('id', id)
+      .single();
+
+    if (checkError || !existing) {
       return res.status(404).json({ error: 'Knowledge base not found' });
     }
 
-    // Check ownership
-    const user = await dbService.getUserById(userId);
-    if (kb.organization_id !== user.organization_id) {
-      return res.status(403).json({ error: 'Access denied' });
+    // Update KB
+    const updateData: any = {};
+    if (name !== undefined) updateData.name = name;
+    if (description !== undefined) updateData.description = description;
+    if (type !== undefined) updateData.type = type;
+    updateData.updated_at = new Date().toISOString();
+
+    const { data: kb, error } = await supabase
+      .from('knowledge_bases')
+      .update(updateData)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      logger.error('Failed to update knowledge base:', error);
+      return res.status(500).json({ error: 'Failed to update knowledge base' });
     }
 
-    const updated = await dbService.updateKnowledgeBase(id, {
-      name,
-      description,
-      updated_at: new Date()
-    });
-
-    logger.info('Knowledge base updated:', { kbId: id });
-
-    res.json(updated);
+    logger.info('Knowledge base updated:', { id });
+    res.json(kb);
   } catch (error) {
     logger.error('Failed to update knowledge base:', error);
     res.status(500).json({ error: 'Failed to update knowledge base' });
@@ -153,24 +206,36 @@ router.put('/:id', async (req: Request, res: Response) => {
 router.delete('/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const userId = (req as any).user?.id;
-    const dbService: DatabaseService = (req.app as any).get('dbService');
 
-    const kb = await dbService.getKnowledgeBaseById(id);
-    if (!kb) {
+    // Check if KB exists
+    const { data: existing, error: checkError } = await supabase
+      .from('knowledge_bases')
+      .select('id')
+      .eq('id', id)
+      .single();
+
+    if (checkError || !existing) {
       return res.status(404).json({ error: 'Knowledge base not found' });
     }
 
-    // Check ownership
-    const user = await dbService.getUserById(userId);
-    if (kb.organization_id !== user.organization_id) {
-      return res.status(403).json({ error: 'Access denied' });
+    // Delete all documents first (cascade should handle this, but being explicit)
+    await supabase
+      .from('kb_documents')
+      .delete()
+      .eq('knowledge_base_id', id);
+
+    // Delete KB
+    const { error } = await supabase
+      .from('knowledge_bases')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      logger.error('Failed to delete knowledge base:', error);
+      return res.status(500).json({ error: 'Failed to delete knowledge base' });
     }
 
-    await dbService.deleteKnowledgeBase(id);
-
-    logger.info('Knowledge base deleted:', { kbId: id });
-
+    logger.info('Knowledge base deleted:', { id });
     res.json({ success: true, message: 'Knowledge base deleted' });
   } catch (error) {
     logger.error('Failed to delete knowledge base:', error);
@@ -179,128 +244,110 @@ router.delete('/:id', async (req: Request, res: Response) => {
 });
 
 /**
- * Upload document to knowledge base
+ * Upload documents to knowledge base
  */
-router.post('/:id/documents', upload.single('file'), async (req: Request, res: Response) => {
+router.post('/:id/upload', upload.array('files', 10), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const file = req.file;
-    const userId = (req as any).user?.id;
-    const dbService: DatabaseService = (req.app as any).get('dbService');
+    const files = req.files as Express.Multer.File[];
 
-    if (!file) {
-      return res.status(400).json({ error: 'File is required' });
+    if (!files || files.length === 0) {
+      return res.status(400).json({ error: 'No files uploaded' });
     }
 
-    const kb = await dbService.getKnowledgeBaseById(id);
-    if (!kb) {
+    // Check if KB exists
+    const { data: kb, error: kbError } = await supabase
+      .from('knowledge_bases')
+      .select('id')
+      .eq('id', id)
+      .single();
+
+    if (kbError || !kb) {
       return res.status(404).json({ error: 'Knowledge base not found' });
     }
 
-    // Check ownership
-    const user = await dbService.getUserById(userId);
-    if (kb.organization_id !== user.organization_id) {
-      return res.status(403).json({ error: 'Access denied' });
+    const uploadedDocs = [];
+    const errors = [];
+
+    for (const file of files) {
+      try {
+        logger.info('Processing file:', { filename: file.originalname, mimetype: file.mimetype });
+
+        // Process document based on type
+        let content = '';
+        const fileExt = path.extname(file.originalname).toLowerCase();
+
+        // Extract text based on file type
+        content = await documentProcessor.extractText(file.path, fileExt.substring(1));
+
+        if (!content || content.trim().length === 0) {
+          throw new Error('No content extracted from file');
+        }
+
+        // Save to database
+        const { data: doc, error: docError } = await supabase
+          .from('kb_documents')
+          .insert({
+            knowledge_base_id: id,
+            filename: file.originalname,
+            original_filename: file.originalname,
+            file_path: file.path,
+            file_type: file.mimetype,
+            file_size: file.size,
+            content: content,
+            chunk_count: Math.ceil(content.length / 1000)
+          })
+          .select()
+          .single();
+
+        if (docError) {
+          logger.error('Failed to save document to database:', docError);
+          errors.push({ filename: file.originalname, error: 'Failed to save to database' });
+          continue;
+        }
+
+        uploadedDocs.push(doc);
+
+        // Try to add to vector store (optional, don't fail if it doesn't work)
+        try {
+          await vectorStore.addDocuments(id, [{
+            content: content,
+            metadata: {
+              id: doc.id,
+              filename: file.originalname,
+              type: file.mimetype
+            }
+          }]);
+        } catch (vectorError) {
+          logger.warn('Failed to add to vector store (continuing anyway):', vectorError);
+        }
+
+        logger.info('Document uploaded successfully:', { 
+          kbId: id, 
+          docId: doc.id,
+          filename: file.originalname 
+        });
+
+      } catch (error) {
+        logger.error('Failed to process file:', { filename: file.originalname, error });
+        errors.push({ 
+          filename: file.originalname, 
+          error: error instanceof Error ? error.message : 'Processing failed' 
+        });
+      }
     }
 
-    // Process document (extract text, create embeddings, etc.)
-    // This would be handled by a background job
-    const document = await dbService.createKBDocument({
-      kb_id: id,
-      title: file.originalname,
-      file_path: file.path,
-      status: 'processing',
-      created_at: new Date()
+    res.json({
+      success: true,
+      uploaded: uploadedDocs.length,
+      failed: errors.length,
+      documents: uploadedDocs,
+      errors: errors.length > 0 ? errors : undefined
     });
 
-    // Update KB status
-    await dbService.updateKnowledgeBase(id, {
-      status: 'processing',
-      updated_at: new Date()
-    });
-
-    logger.info('Document uploaded:', { kbId: id, documentId: document.id });
-
-    res.status(201).json(document);
   } catch (error) {
-    logger.error('Failed to upload document:', error);
-    res.status(500).json({ error: 'Failed to upload document' });
-  }
-});
-
-/**
- * Scrape website and add to knowledge base
- */
-router.post('/:id/scrape', async (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
-    const { url, maxPages = 10 } = req.body;
-    const userId = (req as any).user?.id;
-    const dbService: DatabaseService = (req.app as any).get('dbService');
-
-    if (!url) {
-      return res.status(400).json({ error: 'URL is required' });
-    }
-
-    const kb = await dbService.getKnowledgeBaseById(id);
-    if (!kb) {
-      return res.status(404).json({ error: 'Knowledge base not found' });
-    }
-
-    // Check ownership
-    const user = await dbService.getUserById(userId);
-    if (kb.organization_id !== user.organization_id) {
-      return res.status(403).json({ error: 'Access denied' });
-    }
-
-    // Start scraping job (background process)
-    // This would be handled by a job queue
-    await dbService.updateKnowledgeBase(id, {
-      status: 'processing',
-      updated_at: new Date()
-    });
-
-    logger.info('Website scraping started:', { kbId: id, url });
-
-    res.json({ success: true, message: 'Scraping started', url, maxPages });
-  } catch (error) {
-    logger.error('Failed to start scraping:', error);
-    res.status(500).json({ error: 'Failed to start scraping' });
-  }
-});
-
-/**
- * Search knowledge base
- */
-router.get('/:id/search', async (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
-    const { query, limit = 5 } = req.query;
-    const userId = (req as any).user?.id;
-    const dbService: DatabaseService = (req.app as any).get('dbService');
-
-    if (!query) {
-      return res.status(400).json({ error: 'Query is required' });
-    }
-
-    const kb = await dbService.getKnowledgeBaseById(id);
-    if (!kb) {
-      return res.status(404).json({ error: 'Knowledge base not found' });
-    }
-
-    // Check ownership
-    const user = await dbService.getUserById(userId);
-    if (kb.organization_id !== user.organization_id) {
-      return res.status(403).json({ error: 'Access denied' });
-    }
-
-    // Perform semantic search
-    const results = await dbService.searchKnowledgeBase(id, query as string, Number(limit));
-
-    res.json(results);
-  } catch (error) {
-    logger.error('Failed to search knowledge base:', error);
-    res.status(500).json({ error: 'Failed to search knowledge base' });
+    logger.error('Failed to upload documents:', error);
+    res.status(500).json({ error: 'Failed to upload documents' });
   }
 });
 
@@ -310,23 +357,31 @@ router.get('/:id/search', async (req: Request, res: Response) => {
 router.get('/:id/documents', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const userId = (req as any).user?.id;
-    const dbService: DatabaseService = (req.app as any).get('dbService');
 
-    const kb = await dbService.getKnowledgeBaseById(id);
-    if (!kb) {
+    // Check if KB exists
+    const { data: kb, error: kbError } = await supabase
+      .from('knowledge_bases')
+      .select('id')
+      .eq('id', id)
+      .single();
+
+    if (kbError || !kb) {
       return res.status(404).json({ error: 'Knowledge base not found' });
     }
 
-    // Check ownership
-    const user = await dbService.getUserById(userId);
-    if (kb.organization_id !== user.organization_id) {
-      return res.status(403).json({ error: 'Access denied' });
+    // Get documents
+    const { data: docs, error } = await supabase
+      .from('kb_documents')
+      .select('*')
+      .eq('knowledge_base_id', id)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      logger.error('Failed to fetch documents:', error);
+      return res.status(500).json({ error: 'Failed to fetch documents' });
     }
 
-    const documents = await dbService.getKBDocuments(id);
-
-    res.json(documents);
+    res.json(docs || []);
   } catch (error) {
     logger.error('Failed to get documents:', error);
     res.status(500).json({ error: 'Failed to get documents' });
@@ -334,76 +389,142 @@ router.get('/:id/documents', async (req: Request, res: Response) => {
 });
 
 /**
- * Link knowledge base to agent
+ * Delete document from knowledge base
  */
-router.post('/:id/agents/:agentId', async (req: Request, res: Response) => {
+router.delete('/:id/documents/:docId', async (req: Request, res: Response) => {
   try {
-    const { id, agentId } = req.params;
-    const { priority = 0 } = req.body;
-    const userId = (req as any).user?.id;
-    const dbService: DatabaseService = (req.app as any).get('dbService');
+    const { id, docId } = req.params;
 
-    const kb = await dbService.getKnowledgeBaseById(id);
-    if (!kb) {
-      return res.status(404).json({ error: 'Knowledge base not found' });
+    // Check if document exists
+    const { data: doc, error: checkError } = await supabase
+      .from('kb_documents')
+      .select('*')
+      .eq('id', docId)
+      .eq('knowledge_base_id', id)
+      .single();
+
+    if (checkError || !doc) {
+      return res.status(404).json({ error: 'Document not found' });
     }
 
-    const agent = await dbService.getAgentById(agentId);
-    if (!agent) {
-      return res.status(404).json({ error: 'Agent not found' });
+    // Note: Vector store doesn't support individual document deletion
+    // The entire KB would need to be rebuilt if needed
+
+    // Delete file from disk if it exists
+    if (doc.file_path && fs.existsSync(doc.file_path)) {
+      try {
+        fs.unlinkSync(doc.file_path);
+      } catch (fsError) {
+        logger.warn('Failed to delete file from disk:', fsError);
+      }
     }
 
-    // Check ownership
-    const user = await dbService.getUserById(userId);
-    if (kb.organization_id !== user.organization_id || agent.user_id !== userId) {
-      return res.status(403).json({ error: 'Access denied' });
+    // Delete from database
+    const { error } = await supabase
+      .from('kb_documents')
+      .delete()
+      .eq('id', docId);
+
+    if (error) {
+      logger.error('Failed to delete document:', error);
+      return res.status(500).json({ error: 'Failed to delete document' });
     }
 
-    await dbService.linkKnowledgeBaseToAgent(agentId, id, priority);
-
-    logger.info('Knowledge base linked to agent:', { kbId: id, agentId });
-
-    res.json({ success: true, message: 'Knowledge base linked to agent' });
+    logger.info('Document deleted:', { kbId: id, docId });
+    res.json({ success: true, message: 'Document deleted' });
   } catch (error) {
-    logger.error('Failed to link knowledge base:', error);
-    res.status(500).json({ error: 'Failed to link knowledge base' });
+    logger.error('Failed to delete document:', error);
+    res.status(500).json({ error: 'Failed to delete document' });
   }
 });
 
 /**
- * Unlink knowledge base from agent
+ * Search knowledge base
  */
-router.delete('/:id/agents/:agentId', async (req: Request, res: Response) => {
+router.post('/:id/search', async (req: Request, res: Response) => {
   try {
-    const { id, agentId } = req.params;
-    const userId = (req as any).user?.id;
-    const dbService: DatabaseService = (req.app as any).get('dbService');
+    const { id } = req.params;
+    const { query } = req.body;
 
-    const kb = await dbService.getKnowledgeBaseById(id);
-    if (!kb) {
+    if (!query) {
+      return res.status(400).json({ error: 'Search query is required' });
+    }
+
+    // Check if KB exists in database
+    const { data: kb, error: kbError } = await supabase
+      .from('knowledge_bases')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (kbError || !kb) {
       return res.status(404).json({ error: 'Knowledge base not found' });
     }
 
-    const agent = await dbService.getAgentById(agentId);
-    if (!agent) {
-      return res.status(404).json({ error: 'Agent not found' });
+    // Search documents in database
+    const { data: docs, error: docsError } = await supabase
+      .from('kb_documents')
+      .select('*')
+      .eq('knowledge_base_id', id);
+
+    if (docsError) {
+      logger.error('Failed to fetch documents:', docsError);
+      return res.status(500).json({ error: 'Failed to fetch documents' });
     }
 
-    // Check ownership
-    const user = await dbService.getUserById(userId);
-    if (kb.organization_id !== user.organization_id || agent.user_id !== userId) {
-      return res.status(403).json({ error: 'Access denied' });
-    }
+    // Improved text search (case-insensitive, multi-word matching)
+    const queryLower = query.toLowerCase();
+    const queryWords = queryLower.split(/\s+/).filter(w => w.length > 2); // Split into words, ignore short words
+    
+    const results = (docs || [])
+      .filter(doc => {
+        if (!doc.content) return false;
+        const contentLower = doc.content.toLowerCase();
+        
+        // Match if ANY significant word from query is in content
+        return queryWords.some(word => contentLower.includes(word)) || 
+               contentLower.includes(queryLower);
+      })
+      .map(doc => ({
+        document_id: doc.id,
+        filename: doc.filename || doc.original_filename || 'Unknown',
+        excerpt: getExcerpt(doc.content, query),
+        relevance: 0.8 // Mock relevance score
+      }))
+      .slice(0, 5); // Top 5 results
 
-    await dbService.unlinkKnowledgeBaseFromAgent(agentId, id);
+    logger.info('Knowledge base search:', { 
+      kbId: id, 
+      query, 
+      totalDocs: docs?.length || 0,
+      resultsFound: results.length 
+    });
 
-    logger.info('Knowledge base unlinked from agent:', { kbId: id, agentId });
-
-    res.json({ success: true, message: 'Knowledge base unlinked from agent' });
+    res.json({ results });
   } catch (error) {
-    logger.error('Failed to unlink knowledge base:', error);
-    res.status(500).json({ error: 'Failed to unlink knowledge base' });
+    logger.error('Failed to search knowledge base:', error);
+    res.status(500).json({ error: 'Failed to search knowledge base' });
   }
 });
+
+/**
+ * Helper function to get excerpt around search query
+ */
+function getExcerpt(content: string, query: string, contextLength: number = 100): string {
+  const lowerContent = content.toLowerCase();
+  const lowerQuery = query.toLowerCase();
+  const index = lowerContent.indexOf(lowerQuery);
+
+  if (index === -1) return content.substring(0, contextLength) + '...';
+
+  const start = Math.max(0, index - contextLength);
+  const end = Math.min(content.length, index + query.length + contextLength);
+
+  let excerpt = content.substring(start, end);
+  if (start > 0) excerpt = '...' + excerpt;
+  if (end < content.length) excerpt = excerpt + '...';
+
+  return excerpt;
+}
 
 export default router;

@@ -17,7 +17,7 @@ interface AgentConfig {
   llm_max_tokens: number;
   
   // TTS Configuration
-  tts_provider: 'openai' | 'elevenlabs' | 'google' | 'azure';
+  tts_provider: 'groq' | 'openai' | 'elevenlabs' | 'google' | 'azure';
   tts_voice: string;
   tts_speed: number;
   
@@ -114,6 +114,7 @@ const ImprovedAgentBuilder: React.FC = () => {
   };
 
   const ttsVoices = {
+    groq: ['Fritz-PlayAI', 'Celeste-PlayAI', 'Mason-PlayAI', 'Quinn-PlayAI', 'Thunder-PlayAI'],
     openai: ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'],
     elevenlabs: ['Sarah', 'Rachel', 'Domi', 'Bella'],
     google: ['en-US-Neural2-A', 'en-US-Neural2-C', 'en-US-Neural2-D'],
@@ -294,6 +295,7 @@ const ImprovedAgentBuilder: React.FC = () => {
                   })}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-lime-500 focus:border-transparent"
                 >
+                  <option value="groq">⚡ Groq PlayAI (FREE)</option>
                   <option value="openai">OpenAI TTS</option>
                   <option value="elevenlabs">ElevenLabs</option>
                   <option value="google">Google Cloud TTS</option>

@@ -16,13 +16,8 @@ import { SessionService } from './services/sessionService';
 import { FunctionRegistry } from './services/functionRegistry';
 import { authenticateToken, optionalAuth } from './middleware/auth';
 import { securityHeaders, sanitizeInput, securityLogger, corsOptions } from './middleware/security';
-import { createAPIRateLimit, createAuthRateLimit } from './middleware/rateLimiting';
 import { logger } from './utils/logger';
 import { config } from './config/env';
-import { redis } from './config/redis';
-import { redis } from './config/redis';
-// Redis temporarily disabled
-// import { redis, connectRedis } from './config/redis';
 
 // Initialize Express app
 const app = express();
@@ -45,18 +40,15 @@ const supabase = createClient(
 // Initialize services
 const dbService = new DatabaseService();
 const auditService = new AuditService(dbService);
-const sessionService = new SessionService(auditService);
 const functionRegistry = new FunctionRegistry(auditService);
 const conversationService = new ConversationService(dbService, null as any);
-const sttService = new STTService();
-const ttsService = new TTSService();
+import { createSTTService } from './services/stt';
+import { createTTSService } from './services/tts';
+const sttService = createSTTService();
+const ttsService = createTTSService();
 const sipService = new SipService(dbService, conversationService);
 const outboundCallService = new OutboundCallService(sipService, conversationService, sttService, ttsService, dbService);
 const sipManager = new SipManager(sipService, conversationService, sttService, ttsService, dbService);
-
-// Initialize rate limiters
-const apiRateLimit = createAPIRateLimit();
-const authRateLimit = createAuthRateLimit();
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -75,17 +67,58 @@ app.get('/api', (req, res) => {
   });
 });
 
-// Apply rate limiting to API routes
-app.use('/api', apiRateLimit.middleware());
+// Database health check (before rate limiting)
+app.get('/api/health/database', async (req, res) => {
+  logger.info('Database health check endpoint called');
+  
+  // Set a timeout for the entire request
+  const timeout = setTimeout(() => {
+    logger.warn('Database health check timed out after 8 seconds');
+    if (!res.headersSent) {
+      res.status(504).json({ 
+        status: 'timeout',
+        error: 'Database health check timed out',
+        timestamp: new Date().toISOString()
+      });
+    }
+  }, 8000); // 8 second timeout
+
+  try {
+    logger.info('Calling dbService.healthCheck()...');
+    const isHealthy = await dbService.healthCheck();
+    logger.info(`Health check result: ${isHealthy}`);
+    clearTimeout(timeout);
+    if (!res.headersSent) {
+      res.json({ 
+        status: isHealthy ? 'healthy' : 'unhealthy',
+        timestamp: new Date().toISOString()
+      });
+    }
+  } catch (error) {
+    logger.error('Health check exception:', error);
+    clearTimeout(timeout);
+    if (!res.headersSent) {
+      res.status(500).json({ 
+        status: 'error',
+        error: 'Database health check failed',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        timestamp: new Date().toISOString()
+      });
+    }
+  }
+});
 
 // Make services available to routes
 app.set('functionRegistry', functionRegistry);
 app.set('dbService', dbService);
+app.set('auditService', auditService);
 
-// Routes will be mounted after Redis connection in startServer()
+// Test route
+app.get('/api/test', (req, res) => {
+  res.json({ message: 'Test route works!' });
+});
 
-// Authentication routes with rate limiting
-app.use('/api/auth', authRateLimit.middleware());
+// Routes will be mounted in startServer()
 
 app.post('/api/auth/profile', authenticateToken(auditService), async (req, res) => {
   try {
@@ -118,78 +151,12 @@ app.post('/api/auth/profile', authenticateToken(auditService), async (req, res) 
   }
 });
 
-// Session management endpoints
-app.post('/api/auth/logout', authenticateToken(auditService), async (req, res) => {
-  try {
-    const sessionId = req.headers['x-session-id'] as string;
-    if (sessionId) {
-      await sessionService.destroySession(sessionId);
-    }
-    
-    res.json({ message: 'Logged out successfully' });
-  } catch (error) {
-    logger.error('Logout error:', error);
-    res.status(500).json({ error: 'Logout failed' });
-  }
-});
 
-app.post('/api/auth/logout-all', authenticateToken(auditService), async (req, res) => {
-  try {
-    await sessionService.destroyAllUserSessions(req.user!.id);
-    res.json({ message: 'All sessions terminated' });
-  } catch (error) {
-    logger.error('Logout all error:', error);
-    res.status(500).json({ error: 'Failed to terminate all sessions' });
-  }
-});
-
-app.get('/api/auth/sessions', authenticateToken(auditService), async (req, res) => {
-  try {
-    const sessions = await sessionService.getUserSessions(req.user!.id);
-    res.json(sessions);
-  } catch (error) {
-    logger.error('Get sessions error:', error);
-    res.status(500).json({ error: 'Failed to get sessions' });
-  }
-});
-
-// Database health check
-app.get('/api/health/database', async (req, res) => {
-  try {
-    const isHealthy = await dbService.healthCheck();
-    res.json({ 
-      status: isHealthy ? 'healthy' : 'unhealthy',
-      timestamp: new Date().toISOString()
-    });
-  } catch (error) {
-    res.status(500).json({ 
-      status: 'error',
-      error: 'Database health check failed',
-      timestamp: new Date().toISOString()
-    });
-  }
-});
-
-// Error handling middleware
-app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
-  logger.error('Unhandled error:', err);
-  res.status(500).json({ 
-    error: 'Internal server error',
-    message: process.env.NODE_ENV === 'development' ? err.message : 'Something went wrong'
-  });
-});
-
-// 404 handler
-app.use('*', (req, res) => {
-  res.status(404).json({ error: 'Route not found' });
-});
 
 // Start server
 async function startServer() {
   try {
-    // Redis temporarily disabled
-    // await connectRedis();
-    logger.info('Starting server without Redis (sessions and rate limiting disabled)');
+    logger.info('Starting server...');
 
     // Test Supabase connection
     const { data, error } = await supabase.from('_health').select('*').limit(1);
@@ -209,18 +176,41 @@ async function startServer() {
       // Continue without SIP functionality
     }
 
-    // Setup routes (dynamic import after Redis is connected)
-    const { setupRoutes } = await import('./routes/index');
-    await setupRoutes(app, {
-      dbService,
-      auditService,
-      functionRegistry,
-      sipService,
-      outboundCallService
+    // In development mode, we'll handle user creation differently
+    // The user will be created on first agent creation if needed
+    if (process.env.NODE_ENV === 'development' && process.env.BYPASS_AUTH === 'true') {
+      logger.info('Development mode: Users will be created automatically on first use');
+    }
+
+    // Setup routes
+    try {
+      const { setupRoutes } = await import('./routes/index');
+      await setupRoutes(app, {
+        dbService,
+        auditService,
+        functionRegistry,
+        sipService,
+        outboundCallService
+      });
+      logger.info('Routes setup completed');
+    } catch (error) {
+      logger.error('Failed to setup routes:', error);
+      throw error;
+    }
+
+    // Error handling middleware (must be after routes)
+    app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
+      logger.error('Unhandled error:', err);
+      res.status(500).json({ 
+        error: 'Internal server error',
+        message: process.env.NODE_ENV === 'development' ? err.message : 'Something went wrong'
+      });
     });
 
-    // Start cleanup tasks
-    startCleanupTasks();
+    // 404 handler (must be last)
+    app.use('*', (req, res) => {
+      res.status(404).json({ error: 'Route not found' });
+    });
 
     app.listen(PORT, () => {
       logger.info(`Server running on port ${PORT}`);
@@ -237,10 +227,6 @@ process.on('SIGTERM', async () => {
   logger.info('SIGTERM received, shutting down gracefully');
   await sipManager.cleanup();
   await outboundCallService.cleanup();
-  await sessionService.cleanup();
-  await apiRateLimit.cleanup();
-  await authRateLimit.cleanup();
-  await redis.disconnect();
   process.exit(0);
 });
 
@@ -248,40 +234,9 @@ process.on('SIGINT', async () => {
   logger.info('SIGINT received, shutting down gracefully');
   await sipManager.cleanup();
   await outboundCallService.cleanup();
-  await sessionService.cleanup();
-  await apiRateLimit.cleanup();
-  await authRateLimit.cleanup();
-  await redis.disconnect();
   process.exit(0);
 });
 
-// Cleanup tasks
-function startCleanupTasks() {
-  // Clean up expired sessions every hour
-  setInterval(async () => {
-    try {
-      const cleanedSessions = await sessionService.cleanupExpiredSessions();
-      if (cleanedSessions > 0) {
-        logger.info(`Cleaned up ${cleanedSessions} expired sessions`);
-      }
-    } catch (error) {
-      logger.error('Session cleanup failed:', error);
-    }
-  }, 60 * 60 * 1000); // 1 hour
-
-  // Clean up old audit logs daily
-  setInterval(async () => {
-    try {
-      const cleanedLogs = await auditService.cleanupOldLogs(365); // Keep 1 year
-      if (cleanedLogs > 0) {
-        logger.info(`Cleaned up ${cleanedLogs} old audit log entries`);
-      }
-    } catch (error) {
-      logger.error('Audit log cleanup failed:', error);
-    }
-  }, 24 * 60 * 60 * 1000); // 24 hours
-}
-
 startServer();
 
-export { app, supabase, dbService, auditService, sessionService, sipService, sipManager, outboundCallService };
+export { app, supabase, dbService, auditService, sipService, sipManager, outboundCallService };

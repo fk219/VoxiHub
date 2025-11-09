@@ -52,8 +52,8 @@ const AgentList: React.FC = () => {
 
   const loadAgents = async () => {
     try {
-      const response = await apiClient.get('/api/agents');
-      setAgents(response.data);
+      const agents = await apiClient.getAgents();
+      setAgents(agents);
     } catch (error) {
       console.error('Failed to load agents:', error);
       toast.error('Failed to load agents');
@@ -353,10 +353,8 @@ const AgentList: React.FC = () => {
 
                         <button
                           onClick={() => {
-                            setTestingAgent(agent.id);
+                            navigate(`/agents/${agent.id}/test`);
                             setShowMenu(null);
-                            setTestMessage('');
-                            setTestResponse(null);
                           }}
                           style={{
                             width: '100%',

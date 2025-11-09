@@ -46,13 +46,14 @@ export class RateLimiter {
 
   middleware() {
     return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-      try {
-        // Skip rate limiting if Redis is not connected
-        if (!this.redis || !this.redis.isOpen) {
-          next();
-          return;
-        }
+      // Always skip rate limiting if Redis is not properly connected
+      // Check multiple connection states to be safe
+      if (!this.redis || !this.redis.isOpen) {
+        next();
+        return;
+      }
 
+      try {
         const key = this.options.keyGenerator(req);
         const now = Date.now();
         const windowStart = now - this.options.windowMs;

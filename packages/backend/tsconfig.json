@@ -19,7 +19,7 @@
     "strictFunctionTypes": false,
     "noImplicitReturns": false,
     "noFallthroughCasesInSwitch": false,
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "baseUrl": "./src",
     "paths": {
       "@/*": ["*"]

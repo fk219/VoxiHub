@@ -6,14 +6,14 @@ import {
   MdUpload,
   MdLanguage,
   MdDelete,
-  MdEdit,
   MdLink,
   MdDescription,
   MdMoreVert,
   MdRefresh,
   MdCheckCircle,
   MdError,
-  MdHourglassEmpty
+  MdHourglassEmpty,
+  MdTextFields
 } from 'react-icons/md';
 import { apiClient } from '@/lib/api';
 import toast from 'react-hot-toast';
@@ -35,6 +35,8 @@ const KnowledgeBase: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [createStep, setCreateStep] = useState<'method' | 'details'>('method');
+  const [selectedMethod, setSelectedMethod] = useState<'upload' | 'scrape' | 'text' | null>(null);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [showScrapeModal, setShowScrapeModal] = useState(false);
   const [selectedKB, setSelectedKB] = useState<KnowledgeBase | null>(null);
@@ -43,18 +45,20 @@ const KnowledgeBase: React.FC = () => {
   // Create form
   const [createForm, setCreateForm] = useState({
     name: '',
-    description: '',
-    type: 'manual' as 'document' | 'website' | 'manual'
+    description: ''
   });
 
   // Upload form
-  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploadFiles, setUploadFiles] = useState<File[]>([]);
 
   // Scrape form
   const [scrapeForm, setScrapeForm] = useState({
     url: '',
     maxPages: 10
   });
+
+  // Text form
+  const [textContent, setTextContent] = useState('');
 
   useEffect(() => {
     loadKnowledgeBases();
@@ -63,53 +67,84 @@ const KnowledgeBase: React.FC = () => {
   const loadKnowledgeBases = async () => {
     try {
       const response = await apiClient.get('/api/knowledge-bases');
-      setKnowledgeBases(response.data);
+      setKnowledgeBases((response as KnowledgeBase[]) || []);
     } catch (error) {
-      console.error('Failed to load knowledge bases:', error);
-      toast.error('Failed to load knowledge bases');
+      console.log('Knowledge bases: Feature coming soon');
+      setKnowledgeBases([]);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleCreate = async () => {
+  const handleCreateWithContent = async () => {
     if (!createForm.name.trim()) {
       toast.error('Name is required');
       return;
     }
 
     try {
-      const response = await apiClient.post('/api/knowledge-bases', createForm);
-      setKnowledgeBases([response.data, ...knowledgeBases]);
-      setShowCreateModal(false);
-      setCreateForm({ name: '', description: '', type: 'manual' });
-      toast.success('Knowledge base created');
+      const kbType = selectedMethod === 'upload' ? 'document' : selectedMethod === 'scrape' ? 'website' : 'manual';
+      const response = await apiClient.post('/api/knowledge-bases', {
+        ...createForm,
+        type: kbType
+      }) as KnowledgeBase;
+
+      if (selectedMethod === 'upload' && uploadFiles.length > 0) {
+        const formData = new FormData();
+        uploadFiles.forEach(file => formData.append('files', file));
+        await apiClient.post(`/api/knowledge-bases/${response.id}/upload`, formData);
+        toast.success(`Knowledge base created with ${uploadFiles.length} document(s)`);
+      } else if (selectedMethod === 'scrape' && scrapeForm.url) {
+        await apiClient.post(`/api/knowledge-bases/${response.id}/scrape`, scrapeForm);
+        toast.success('Knowledge base created, scraping started');
+      } else if (selectedMethod === 'text' && textContent.trim()) {
+        const blob = new Blob([textContent], { type: 'text/plain' });
+        const file = new File([blob], 'manual-content.txt', { type: 'text/plain' });
+        const formData = new FormData();
+        formData.append('files', file);
+        await apiClient.post(`/api/knowledge-bases/${response.id}/upload`, formData);
+        toast.success('Knowledge base created with text content');
+      } else {
+        toast.success('Knowledge base created');
+      }
+
+      setKnowledgeBases([response, ...knowledgeBases]);
+      resetCreateModal();
+      loadKnowledgeBases();
     } catch (error) {
       console.error('Failed to create knowledge base:', error);
       toast.error('Failed to create knowledge base');
     }
   };
 
+  const resetCreateModal = () => {
+    setShowCreateModal(false);
+    setCreateStep('method');
+    setSelectedMethod(null);
+    setCreateForm({ name: '', description: '' });
+    setUploadFiles([]);
+    setScrapeForm({ url: '', maxPages: 10 });
+    setTextContent('');
+  };
+
   const handleUpload = async () => {
-    if (!uploadFile || !selectedKB) {
-      toast.error('Please select a file');
+    if (uploadFiles.length === 0 || !selectedKB) {
+      toast.error('Please select at least one file');
       return;
     }
 
     const formData = new FormData();
-    formData.append('file', uploadFile);
+    uploadFiles.forEach(file => formData.append('files', file));
 
     try {
-      await apiClient.post(`/api/knowledge-bases/${selectedKB.id}/documents`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
+      const response = await apiClient.post(`/api/knowledge-bases/${selectedKB.id}/upload`, formData) as { uploaded: number };
       setShowUploadModal(false);
-      setUploadFile(null);
-      toast.success('Document uploaded successfully');
+      setUploadFiles([]);
+      toast.success(`${response.uploaded || uploadFiles.length} document(s) uploaded successfully`);
       loadKnowledgeBases();
     } catch (error) {
-      console.error('Failed to upload document:', error);
-      toast.error('Failed to upload document');
+      console.error('Failed to upload documents:', error);
+      toast.error('Failed to upload documents');
     }
   };
 
@@ -388,7 +423,7 @@ const KnowledgeBase: React.FC = () => {
                           onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
                         >
                           <MdLink size={16} />
-                          Link to Agents
+                          View Details
                         </button>
 
                         <button
@@ -439,7 +474,7 @@ const KnowledgeBase: React.FC = () => {
         </div>
       )}
 
-      {/* Create Modal */}
+      {/* Create Modal - Improved with Method Selection */}
       {showCreateModal && (
         <div style={{
           position: 'fixed',
@@ -452,63 +487,326 @@ const KnowledgeBase: React.FC = () => {
           alignItems: 'center',
           justifyContent: 'center',
           zIndex: 1000
-        }} onClick={() => setShowCreateModal(false)}>
-          <div className="card" style={{ maxWidth: '500px', width: '90%' }} onClick={(e) => e.stopPropagation()}>
+        }} onClick={resetCreateModal}>
+          <div className="card" style={{ maxWidth: '600px', width: '90%', maxHeight: '90vh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
             <div className="card-header">
               <h3 className="card-title">Create Knowledge Base</h3>
+              <p className="card-subtitle">
+                {createStep === 'method' ? 'Choose how to add content' : 'Enter details and content'}
+              </p>
             </div>
 
-            <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: 400, color: '#0f172a', marginBottom: '8px' }}>
-                  Name *
-                </label>
-                <input
-                  type="text"
-                  value={createForm.name}
-                  onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })}
-                  placeholder="e.g., Product Documentation"
-                  style={{
-                    width: '100%',
-                    padding: '12px',
-                    border: '1px solid #e2e8f0',
-                    borderRadius: '8px',
-                    fontSize: '14px',
-                    fontWeight: 300
+            {/* Step 1: Method Selection */}
+            {createStep === 'method' && (
+              <div style={{ marginTop: '24px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <button
+                  onClick={() => {
+                    setSelectedMethod('upload');
+                    setCreateStep('details');
                   }}
-                />
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: 400, color: '#0f172a', marginBottom: '8px' }}>
-                  Description
-                </label>
-                <textarea
-                  value={createForm.description}
-                  onChange={(e) => setCreateForm({ ...createForm, description: e.target.value })}
-                  placeholder="Describe this knowledge base..."
-                  rows={3}
                   style={{
-                    width: '100%',
-                    padding: '12px',
-                    border: '1px solid #e2e8f0',
-                    borderRadius: '8px',
-                    fontSize: '14px',
-                    fontWeight: 300,
-                    resize: 'vertical'
+                    padding: '20px',
+                    border: '2px solid #e2e8f0',
+                    borderRadius: '12px',
+                    background: 'white',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    transition: 'all 0.2s'
                   }}
-                />
-              </div>
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = '#a3e635';
+                    e.currentTarget.style.background = '#f7fee7';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = '#e2e8f0';
+                    e.currentTarget.style.background = 'white';
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                    <div style={{
+                      padding: '12px',
+                      borderRadius: '10px',
+                      background: 'linear-gradient(135deg, #a3e635 0%, #84cc16 100%)',
+                      color: 'white'
+                    }}>
+                      <MdUpload size={24} />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '16px', fontWeight: 400, color: '#0f172a', marginBottom: '4px' }}>
+                        Upload Documents
+                      </div>
+                      <div style={{ fontSize: '13px', fontWeight: 300, color: '#64748b' }}>
+                        Upload PDF, TXT, MD, DOC, or DOCX files
+                      </div>
+                    </div>
+                  </div>
+                </button>
 
-              <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '8px' }}>
-                <button onClick={() => setShowCreateModal(false)} className="btn btn-secondary">
-                  Cancel
+                <button
+                  onClick={() => {
+                    setSelectedMethod('scrape');
+                    setCreateStep('details');
+                  }}
+                  style={{
+                    padding: '20px',
+                    border: '2px solid #e2e8f0',
+                    borderRadius: '12px',
+                    background: 'white',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    transition: 'all 0.2s'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = '#a3e635';
+                    e.currentTarget.style.background = '#f7fee7';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = '#e2e8f0';
+                    e.currentTarget.style.background = 'white';
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                    <div style={{
+                      padding: '12px',
+                      borderRadius: '10px',
+                      background: 'linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%)',
+                      color: 'white'
+                    }}>
+                      <MdLanguage size={24} />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '16px', fontWeight: 400, color: '#0f172a', marginBottom: '4px' }}>
+                        Scrape Website
+                      </div>
+                      <div style={{ fontSize: '13px', fontWeight: 300, color: '#64748b' }}>
+                        Extract content from a website URL
+                      </div>
+                    </div>
+                  </div>
                 </button>
-                <button onClick={handleCreate} className="btn btn-primary">
-                  Create
+
+                <button
+                  onClick={() => {
+                    setSelectedMethod('text');
+                    setCreateStep('details');
+                  }}
+                  style={{
+                    padding: '20px',
+                    border: '2px solid #e2e8f0',
+                    borderRadius: '12px',
+                    background: 'white',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    transition: 'all 0.2s'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = '#a3e635';
+                    e.currentTarget.style.background = '#f7fee7';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = '#e2e8f0';
+                    e.currentTarget.style.background = 'white';
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                    <div style={{
+                      padding: '12px',
+                      borderRadius: '10px',
+                      background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                      color: 'white'
+                    }}>
+                      <MdTextFields size={24} />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '16px', fontWeight: 400, color: '#0f172a', marginBottom: '4px' }}>
+                        Add Text Manually
+                      </div>
+                      <div style={{ fontSize: '13px', fontWeight: 300, color: '#64748b' }}>
+                        Type or paste text content directly
+                      </div>
+                    </div>
+                  </div>
                 </button>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px' }}>
+                  <button onClick={resetCreateModal} className="btn btn-secondary">
+                    Cancel
+                  </button>
+                </div>
               </div>
-            </div>
+            )}
+
+            {/* Step 2: Details and Content */}
+            {createStep === 'details' && (
+              <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 400, color: '#0f172a', marginBottom: '8px' }}>
+                    Name *
+                  </label>
+                  <input
+                    type="text"
+                    value={createForm.name}
+                    onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })}
+                    placeholder="e.g., Product Documentation"
+                    style={{
+                      width: '100%',
+                      padding: '12px',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '8px',
+                      fontSize: '14px',
+                      fontWeight: 300
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 400, color: '#0f172a', marginBottom: '8px' }}>
+                    Description
+                  </label>
+                  <textarea
+                    value={createForm.description}
+                    onChange={(e) => setCreateForm({ ...createForm, description: e.target.value })}
+                    placeholder="Describe this knowledge base..."
+                    rows={2}
+                    style={{
+                      width: '100%',
+                      padding: '12px',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '8px',
+                      fontSize: '14px',
+                      fontWeight: 300,
+                      resize: 'vertical'
+                    }}
+                  />
+                </div>
+
+                {/* Upload Files */}
+                {selectedMethod === 'upload' && (
+                  <div>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 400, color: '#0f172a', marginBottom: '8px' }}>
+                      Upload Files
+                    </label>
+                    <div style={{
+                      border: '2px dashed #e2e8f0',
+                      borderRadius: '8px',
+                      padding: '24px',
+                      textAlign: 'center',
+                      background: '#f8fafc'
+                    }}>
+                      <MdUpload size={40} style={{ color: '#cbd5e1', marginBottom: '8px' }} />
+                      <p style={{ fontSize: '13px', fontWeight: 400, color: '#0f172a', marginBottom: '4px' }}>
+                        Drop files here or click to browse
+                      </p>
+                      <p style={{ fontSize: '12px', fontWeight: 300, color: '#64748b', marginBottom: '12px' }}>
+                        PDF, TXT, MD, DOC, DOCX (Max 10MB)
+                      </p>
+                      <input
+                        type="file"
+                        accept=".pdf,.doc,.docx,.txt,.md"
+                        multiple
+                        onChange={(e) => setUploadFiles(Array.from(e.target.files || []))}
+                        style={{ display: 'none' }}
+                        id="create-file-upload"
+                      />
+                      <label htmlFor="create-file-upload" className="btn btn-secondary" style={{ cursor: 'pointer' }}>
+                        Select Files
+                      </label>
+                    </div>
+                    {uploadFiles.length > 0 && (
+                      <div style={{ marginTop: '12px' }}>
+                        <p style={{ fontSize: '12px', fontWeight: 400, color: '#0f172a', marginBottom: '8px' }}>
+                          Selected: {uploadFiles.length} file(s)
+                        </p>
+                        {uploadFiles.map((file, i) => (
+                          <div key={i} style={{ fontSize: '12px', color: '#64748b', marginBottom: '4px' }}>
+                            • {file.name} ({(file.size / 1024).toFixed(1)} KB)
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Scrape Website */}
+                {selectedMethod === 'scrape' && (
+                  <>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '13px', fontWeight: 400, color: '#0f172a', marginBottom: '8px' }}>
+                        Website URL *
+                      </label>
+                      <input
+                        type="url"
+                        value={scrapeForm.url}
+                        onChange={(e) => setScrapeForm({ ...scrapeForm, url: e.target.value })}
+                        placeholder="https://example.com"
+                        style={{
+                          width: '100%',
+                          padding: '12px',
+                          border: '1px solid #e2e8f0',
+                          borderRadius: '8px',
+                          fontSize: '14px',
+                          fontWeight: 300
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '13px', fontWeight: 400, color: '#0f172a', marginBottom: '8px' }}>
+                        Max Pages
+                      </label>
+                      <input
+                        type="number"
+                        value={scrapeForm.maxPages}
+                        onChange={(e) => setScrapeForm({ ...scrapeForm, maxPages: parseInt(e.target.value) })}
+                        min="1"
+                        max="100"
+                        style={{
+                          width: '100%',
+                          padding: '12px',
+                          border: '1px solid #e2e8f0',
+                          borderRadius: '8px',
+                          fontSize: '14px',
+                          fontWeight: 300
+                        }}
+                      />
+                    </div>
+                  </>
+                )}
+
+                {/* Add Text */}
+                {selectedMethod === 'text' && (
+                  <div>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 400, color: '#0f172a', marginBottom: '8px' }}>
+                      Text Content *
+                    </label>
+                    <textarea
+                      value={textContent}
+                      onChange={(e) => setTextContent(e.target.value)}
+                      placeholder="Paste or type your content here..."
+                      rows={10}
+                      style={{
+                        width: '100%',
+                        padding: '12px',
+                        border: '1px solid #e2e8f0',
+                        borderRadius: '8px',
+                        fontSize: '14px',
+                        fontWeight: 300,
+                        resize: 'vertical',
+                        fontFamily: 'monospace'
+                      }}
+                    />
+                  </div>
+                )}
+
+                <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '8px' }}>
+                  <button onClick={() => setCreateStep('method')} className="btn btn-secondary">
+                    Back
+                  </button>
+                  <button onClick={handleCreateWithContent} className="btn btn-primary">
+                    Create Knowledge Base
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -529,36 +827,78 @@ const KnowledgeBase: React.FC = () => {
         }} onClick={() => setShowUploadModal(false)}>
           <div className="card" style={{ maxWidth: '500px', width: '90%' }} onClick={(e) => e.stopPropagation()}>
             <div className="card-header">
-              <h3 className="card-title">Upload Document</h3>
+              <h3 className="card-title">Upload Documents</h3>
               <p className="card-subtitle">{selectedKB.name}</p>
             </div>
 
             <div style={{ marginTop: '16px' }}>
-              <input
-                type="file"
-                accept=".pdf,.doc,.docx,.txt"
-                onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
-                style={{
-                  width: '100%',
-                  padding: '12px',
-                  border: '2px dashed #e2e8f0',
-                  borderRadius: '8px',
-                  fontSize: '14px',
-                  fontWeight: 300
-                }}
-              />
-              {uploadFile && (
-                <p style={{ fontSize: '13px', fontWeight: 300, color: '#64748b', marginTop: '8px' }}>
-                  Selected: {uploadFile.name}
+              <div style={{
+                border: '2px dashed #e2e8f0',
+                borderRadius: '8px',
+                padding: '24px',
+                textAlign: 'center',
+                background: '#f8fafc'
+              }}>
+                <MdUpload size={48} style={{ color: '#cbd5e1', marginBottom: '12px' }} />
+                <p style={{ fontSize: '14px', fontWeight: 400, color: '#0f172a', marginBottom: '4px' }}>
+                  Drop PDF files here or click to browse
                 </p>
+                <p style={{ fontSize: '12px', fontWeight: 300, color: '#64748b', marginBottom: '16px' }}>
+                  Supports: PDF, TXT, MD, DOC, DOCX (Max 10MB per file)
+                </p>
+                <input
+                  type="file"
+                  accept=".pdf,.doc,.docx,.txt,.md"
+                  multiple
+                  onChange={(e) => setUploadFiles(Array.from(e.target.files || []))}
+                  style={{ display: 'none' }}
+                  id="file-upload"
+                />
+                <label htmlFor="file-upload" className="btn btn-secondary" style={{ cursor: 'pointer' }}>
+                  Select Files
+                </label>
+              </div>
+
+              {uploadFiles.length > 0 && (
+                <div style={{ marginTop: '16px' }}>
+                  <p style={{ fontSize: '13px', fontWeight: 400, color: '#0f172a', marginBottom: '8px' }}>
+                    Selected Files ({uploadFiles.length}):
+                  </p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {uploadFiles.map((file, index) => (
+                      <div key={index} style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '8px 12px',
+                        background: '#f8fafc',
+                        borderRadius: '6px',
+                        fontSize: '13px',
+                        fontWeight: 300,
+                        color: '#0f172a'
+                      }}>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <MdDescription size={16} style={{ color: '#64748b' }} />
+                          {file.name}
+                        </span>
+                        <span style={{ color: '#64748b' }}>
+                          {(file.size / 1024).toFixed(1)} KB
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               )}
 
               <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '24px' }}>
-                <button onClick={() => setShowUploadModal(false)} className="btn btn-secondary">
+                <button onClick={() => {
+                  setShowUploadModal(false);
+                  setUploadFiles([]);
+                }} className="btn btn-secondary">
                   Cancel
                 </button>
-                <button onClick={handleUpload} disabled={!uploadFile} className="btn btn-primary">
-                  Upload
+                <button onClick={handleUpload} disabled={uploadFiles.length === 0} className="btn btn-primary">
+                  Upload {uploadFiles.length > 0 && `(${uploadFiles.length})`}
                 </button>
               </div>
             </div>

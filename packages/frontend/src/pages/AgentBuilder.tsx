@@ -65,8 +65,8 @@ const AgentBuilder: React.FC = () => {
     llm_max_tokens: 1000,
     functions_enabled: true,
     knowledge_base_ids: [],
-    stt_provider: 'openai',
-    tts_provider: 'elevenlabs',
+    stt_provider: 'groq',
+    tts_provider: 'groq',
     interruption_sensitivity: 0.5,
     response_delay: 0,
     end_call_phrases: ['goodbye', 'bye', 'thank you'],
@@ -405,6 +405,7 @@ const AgentBuilder: React.FC = () => {
                   fontWeight: 300
                 }}
               >
+                <option value="groq">⚡ Groq PlayAI (FREE)</option>
                 <option value="elevenlabs">ElevenLabs</option>
                 <option value="openai">OpenAI TTS</option>
                 <option value="google">Google Cloud TTS</option>
@@ -508,6 +509,7 @@ const AgentBuilder: React.FC = () => {
                   fontWeight: 300
                 }}
               >
+                <option value="groq">⚡ Groq Whisper (FREE)</option>
                 <option value="openai">OpenAI Whisper</option>
                 <option value="google">Google Cloud STT</option>
                 <option value="azure">Azure STT</option>
